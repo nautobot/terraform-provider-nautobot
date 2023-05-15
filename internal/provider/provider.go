@@ -53,6 +53,7 @@ func New(version string) func() *schema.Provider {
 			},
 			DataSourcesMap: map[string]*schema.Resource{
 				"nautobot_manufacturers": dataSourceManufacturers(),
+				"nautobot_graphql":       dataSourceGraphQL(),
 			},
 			ResourcesMap: map[string]*schema.Resource{
 				"nautobot_manufacturer": resourceManufacturer(),
@@ -69,8 +70,10 @@ func New(version string) func() *schema.Provider {
 // you would need to setup to communicate with the upstream
 // API.
 type apiClient struct {
-	Client *nb.ClientWithResponses
-	Server string
+	Client     *nb.ClientWithResponses
+	Server     string
+	Token      *SecurityProviderNautobotToken
+	BaseClient *nb.Client
 }
 
 func configure(
@@ -102,10 +105,21 @@ func configure(
 			diags[0].Severity = diag.Error
 			return &apiClient{Server: serverURL}, diags
 		}
+		bc, err := nb.NewClient(
+			serverURL,
+			nb.WithRequestEditorFn(token.Intercept),
+		)
+		if err != nil {
+			diags = diag.FromErr(err)
+			diags[0].Severity = diag.Error
+			return &apiClient{Server: serverURL}, diags
+		}
 
 		return &apiClient{
-			Client: c,
-			Server: serverURL,
+			Client:     c,
+			Server:     serverURL,
+			Token:      token,
+			BaseClient: bc,
 		}, diags
 	}
 }
