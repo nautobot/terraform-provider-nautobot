@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	nb "github.com/TobiPeterG/go-nautobot"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	nb "github.com/nautobot/go-nautobot/pkg/nautobot"
 )
 
 func init() {
@@ -70,10 +70,9 @@ func New(version string) func() *schema.Provider {
 // you would need to setup to communicate with the upstream
 // API.
 type apiClient struct {
-	Client     *nb.ClientWithResponses
-	Server     string
-	Token      *SecurityProviderNautobotToken
-	BaseClient *nb.Client
+	Client *nb.APIClient
+	Server string
+	Token  *SecurityProviderNautobotToken
 }
 
 func configure(
@@ -82,6 +81,8 @@ func configure(
 ) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	return func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
 		serverURL := d.Get("url").(string)
+		config := nb.NewConfiguration()
+		config.Servers[0].URL = serverURL
 		_, hasToken := d.GetOk("token")
 
 		var diags diag.Diagnostics = nil
@@ -96,30 +97,12 @@ func configure(
 			d.Get("token").(string),
 		)
 
-		c, err := nb.NewClientWithResponses(
-			serverURL,
-			nb.WithRequestEditorFn(token.Intercept),
-		)
-		if err != nil {
-			diags = diag.FromErr(err)
-			diags[0].Severity = diag.Error
-			return &apiClient{Server: serverURL}, diags
-		}
-		bc, err := nb.NewClient(
-			serverURL,
-			nb.WithRequestEditorFn(token.Intercept),
-		)
-		if err != nil {
-			diags = diag.FromErr(err)
-			diags[0].Severity = diag.Error
-			return &apiClient{Server: serverURL}, diags
-		}
+		c := nb.NewAPIClient(config)
 
 		return &apiClient{
-			Client:     c,
-			Server:     serverURL,
-			Token:      token,
-			BaseClient: bc,
+			Client: c,
+			Server: serverURL,
+			Token:  token,
 		}, diags
 	}
 }
