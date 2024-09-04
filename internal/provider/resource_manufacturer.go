@@ -101,14 +101,27 @@ func resourceManufacturer() *schema.Resource {
 }
 
 func resourceManufacturerCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*nb.APIClient)
+	c := meta.(*apiClient).Client
 	s := meta.(*apiClient).Server
+	t := meta.(*apiClient).Token.token
+
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    t,
+				Prefix: "Token",
+			},
+		},
+	)
 
 	// Check if a manufacturer with the same name already exists
 	name := d.Get("name").(string)
-	existingManufacturersResp, _, err := c.DcimAPI.DcimManufacturersList(ctx).Execute()
+
+	existingManufacturersResp, _, err := c.DcimAPI.DcimManufacturersList(auth).Execute()
 	if err != nil {
-		return diag.Errorf("failed to check existing manufacturers on %s: %s", s, err.Error())
+		return diag.Errorf("failed to check existing manufacturers on %s : %s", s, err.Error())
 	}
 
 	// Search through the results for a manufacturer with the given name
@@ -134,8 +147,7 @@ func resourceManufacturerCreate(ctx context.Context, d *schema.ResourceData, met
 		m.CustomFields = v.(map[string]interface{})
 	}
 
-	req := c.DcimAPI.DcimManufacturersCreate(ctx)
-	rsp, _, err := req.ManufacturerRequest(m).Execute()
+	rsp, _, err := c.DcimAPI.DcimManufacturersCreate(auth).ManufacturerRequest(m).Execute()
 	if err != nil {
 		return diag.Errorf("failed to create manufacturer %s on %s: %s", m.Name, s, err.Error())
 	}
@@ -151,10 +163,22 @@ func resourceManufacturerCreate(ctx context.Context, d *schema.ResourceData, met
 
 func resourceManufacturerRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	c := meta.(*nb.APIClient)
+	t := meta.(*apiClient).Token.token
 	id := d.Get("id").(string)
 
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    t,
+				Prefix: "Token",
+			},
+		},
+	)
+
 	// Fetch manufacturer by ID
-	manufacturer, _, err := c.DcimAPI.DcimManufacturersRetrieve(ctx, id).Execute()
+	manufacturer, _, err := c.DcimAPI.DcimManufacturersRetrieve(auth, id).Execute()
 	if err != nil {
 		return diag.Errorf("failed to get manufacturer %s: %s", id, err.Error())
 	}
@@ -183,12 +207,24 @@ func resourceManufacturerRead(ctx context.Context, d *schema.ResourceData, meta 
 }
 
 func resourceManufacturerUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*nb.APIClient)
+	c := meta.(*apiClient).Client
 	s := meta.(*apiClient).Server
+	t := meta.(*apiClient).Token.token
 
 	id := d.Get("id").(string)
 
 	var m nb.PatchedManufacturerRequest
+
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    t,
+				Prefix: "Token",
+			},
+		},
+	)
 
 	if d.HasChange("name") {
 		name := d.Get("name").(string)
@@ -205,7 +241,7 @@ func resourceManufacturerUpdate(ctx context.Context, d *schema.ResourceData, met
 		m.CustomFields = fields
 	}
 
-	_, _, err := c.DcimAPI.DcimManufacturersPartialUpdate(ctx, id).PatchedManufacturerRequest(m).Execute()
+	_, _, err := c.DcimAPI.DcimManufacturersPartialUpdate(auth, id).PatchedManufacturerRequest(m).Execute()
 	if err != nil {
 		return diag.Errorf("failed to update manufacturer %s on %s: %s", id, s, err.Error())
 	}
@@ -220,12 +256,24 @@ func resourceManufacturerUpdate(ctx context.Context, d *schema.ResourceData, met
 func resourceManufacturerDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	c := meta.(*nb.APIClient)
+	c := meta.(*apiClient).Client
 	s := meta.(*apiClient).Server
+	t := meta.(*apiClient).Token.token
 
 	id := d.Get("id").(string)
 
-	_, err := c.DcimAPI.DcimManufacturersDestroy(ctx, id).Execute()
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    t,
+				Prefix: "Token",
+			},
+		},
+	)
+
+	_, err := c.DcimAPI.DcimManufacturersDestroy(auth, id).Execute()
 	if err != nil {
 		return diag.Errorf("failed to delete manufacturer %s on %s: %s", id, s, err.Error())
 	}

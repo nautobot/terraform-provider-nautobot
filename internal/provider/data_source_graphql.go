@@ -45,7 +45,7 @@ func dataSourceGraphQLRead(ctx context.Context, d *schema.ResourceData, meta int
 	var diags diag.Diagnostics
 
 	c := meta.(*apiClient).Client
-	s := fmt.Sprintf("%sgraphql/", meta.(*apiClient).Server)
+	s := fmt.Sprintf("%s/graphql/", meta.(*apiClient).Server)
 	t := meta.(*apiClient).Token
 	query := d.Get("query").(string)
 

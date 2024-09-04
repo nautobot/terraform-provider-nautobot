@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "nautobot" {
-  url   = "https://demo.nautobot.com/api/"
+  url   = "https://demo.nautobot.com/api"
   token = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 
