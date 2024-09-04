@@ -95,6 +95,7 @@ func resourceManufacturer() *schema.Resource {
 				Description: "Manufacturer's cloud account count.",
 				Type:        schema.TypeInt,
 				Computed:    true,
+				Optional:    true,
 			},
 		},
 	}
@@ -162,7 +163,7 @@ func resourceManufacturerCreate(ctx context.Context, d *schema.ResourceData, met
 }
 
 func resourceManufacturerRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*nb.APIClient)
+	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 	id := d.Get("id").(string)
 

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	nb "github.com/TobiPeterG/go-nautobot"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -50,6 +51,7 @@ func dataSourceManufacturers() *schema.Resource {
 							Description: "Count of cloud accounts associated with the Manufacturer.",
 							Type:        schema.TypeInt,
 							Computed:    true,
+							Optional:    true,
 						},
 						"devicetype_count": {
 							Description: "Count of device types associated with the Manufacturer.",
@@ -110,10 +112,19 @@ func dataSourceManufacturersRead(ctx context.Context, d *schema.ResourceData, me
 
 	c := meta.(*apiClient).Client
 	s := meta.(*apiClient).Server
+	t := meta.(*apiClient).Token.token
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    t,
+				Prefix: "Token",
+			},
+		},
+	)
 
-	req := c.DcimAPI.DcimManufacturersList(ctx)
-	rsp, _, err := req.Execute()
-
+	rsp, _, err := c.DcimAPI.DcimManufacturersList(auth).Execute()
 	if err != nil {
 		return diag.Errorf("failed to get manufacturers list from %s: %s", s, err.Error())
 	}
