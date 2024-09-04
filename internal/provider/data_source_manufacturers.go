@@ -51,7 +51,6 @@ func dataSourceManufacturers() *schema.Resource {
 							Description: "Count of cloud accounts associated with the Manufacturer.",
 							Type:        schema.TypeInt,
 							Computed:    true,
-							Optional:    true,
 						},
 						"devicetype_count": {
 							Description: "Count of device types associated with the Manufacturer.",

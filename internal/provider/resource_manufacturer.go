@@ -95,7 +95,6 @@ func resourceManufacturer() *schema.Resource {
 				Description: "Manufacturer's cloud account count.",
 				Type:        schema.TypeInt,
 				Computed:    true,
-				Optional:    true,
 			},
 		},
 	}
