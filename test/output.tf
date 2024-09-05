@@ -48,3 +48,15 @@ output "cluster_type_details" {
 output "cluster_type_id" {
   value = data.nautobot_cluster_type.example.cluster_types[0].id
 }
+
+data "nautobot_cluster" "example" {
+  depends_on = [nautobot_cluster.new]
+}
+
+output "cluster_details" {
+  value = data.nautobot_cluster.example.clusters[0]
+}
+
+output "cluster_id" {
+  value = data.nautobot_cluster.example.clusters[0].id
+}

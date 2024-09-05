@@ -55,10 +55,12 @@ func New(version string) func() *schema.Provider {
 				"nautobot_manufacturers": dataSourceManufacturers(),
 				"nautobot_graphql":       dataSourceGraphQL(),
 				"nautobot_cluster_type":  dataSourceClusterType(),
+				"nautobot_cluster":       dataSourceCluster(),
 			},
 			ResourcesMap: map[string]*schema.Resource{
 				"nautobot_manufacturer": resourceManufacturer(),
 				"nautobot_cluster_type": resourceClusterType(),
+				"nautobot_cluster":      resourceCluster(),
 			},
 		}
 
