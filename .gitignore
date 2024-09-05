@@ -29,6 +29,7 @@ website/node_modules
 test/.terraform.lock.hcl
 website/vendor
 test/*.tfplan
+test/*tfplan
 
 # Test exclusions
 !command/test-fixtures/**/*.tfstate

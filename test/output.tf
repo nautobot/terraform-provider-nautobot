@@ -36,3 +36,15 @@ output "data_source_graphql" {
 output "data_source_graphql_vm" {
   value = jsondecode(data.nautobot_graphql.nodes.data).virtual_machines
 }
+
+data "nautobot_cluster_type" "example" {
+  depends_on = [nautobot_cluster_type.new]
+}
+
+output "cluster_type_details" {
+  value = data.nautobot_cluster_type.example.cluster_types[0]
+}
+
+output "cluster_type_id" {
+  value = data.nautobot_cluster_type.example.cluster_types[0].id
+}

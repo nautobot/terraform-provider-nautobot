@@ -16,6 +16,8 @@ github.com/TobiPeterG/go-nautobot v1.5.8-beta.0.20240904142010-6ae9224312e1 h1:a
 github.com/TobiPeterG/go-nautobot v1.5.8-beta.0.20240904142010-6ae9224312e1/go.mod h1:ZqNG3KC0xFBMW17EGi8U1pDKcdyX9+TkxC50RmdjGqc=
 github.com/TobiPeterG/go-nautobot v1.5.8-beta.0.20240904144052-85ae1278a67e h1:1fz9qqIaXPkYFReZOgU3K2Nb/IZlBpGJP7DE/dQqN+Y=
 github.com/TobiPeterG/go-nautobot v1.5.8-beta.0.20240904144052-85ae1278a67e/go.mod h1:ZqNG3KC0xFBMW17EGi8U1pDKcdyX9+TkxC50RmdjGqc=
+github.com/TobiPeterG/go-nautobot v1.5.8-beta.0.20240905091605-ef58474dc9d0 h1:9iNmv0cW6X3kQAsBdOqe+RNhCHaXPvYrzPwaDhXc210=
+github.com/TobiPeterG/go-nautobot v1.5.8-beta.0.20240905091605-ef58474dc9d0/go.mod h1:ZqNG3KC0xFBMW17EGi8U1pDKcdyX9+TkxC50RmdjGqc=
 github.com/acomagu/bufpipe v1.0.3 h1:fxAGrHZTgQ9w5QqVItgzwj235/uYZYgbXitB+dLupOk=
 github.com/acomagu/bufpipe v1.0.3/go.mod h1:mxdxdup/WdsKVreO5GpW4+M/1CE2sMG4jeGJ2sYmHc4=
 github.com/agext/levenshtein v1.2.3 h1:YB2fHEn0UJagG8T1rrWknE3ZQzWM06O8AMAatNn7lmo=

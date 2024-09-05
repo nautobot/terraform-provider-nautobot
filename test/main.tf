@@ -16,3 +16,8 @@ resource "nautobot_manufacturer" "new" {
   description = "Created with Terraform"
   name        = "New Vendor"
 }
+
+resource "nautobot_cluster_type" "new" {
+  name        = "Example Cluster Type"
+  description = "This is a cluster type created via Terraform"
+}
