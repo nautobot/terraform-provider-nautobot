@@ -98,9 +98,21 @@ func resourceClusterTypeCreate(ctx context.Context, d *schema.ResourceData, meta
 		},
 	)
 
+	clusterTypeName := d.Get("name").(string)
+	existingClusterTypes, _, err := c.VirtualizationAPI.VirtualizationClusterTypesList(auth).Name([]string{clusterTypeName}).Execute()
+	if err != nil {
+		return diag.Errorf("failed to list cluster types: %s", err.Error())
+	}
+
+	// If a cluster type with the same name exists, use its ID and skip creation
+	if len(existingClusterTypes.Results) > 0 {
+		d.SetId(existingClusterTypes.Results[0].Id)
+		return resourceClusterTypeRead(ctx, d, meta)
+	}
+
 	// Prepare ClusterTypeRequest
 	var clusterType nb.ClusterTypeRequest
-	clusterType.Name = d.Get("name").(string)
+	clusterType.Name = clusterTypeName
 
 	if v, ok := d.GetOk("description"); ok {
 		description := v.(string)

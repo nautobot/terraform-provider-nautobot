@@ -75,10 +75,6 @@ func resourceCluster() *schema.Resource {
 	}
 }
 
-func stringPtr(s string) *string {
-	return &s
-}
-
 func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
@@ -95,9 +91,21 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, meta int
 		},
 	)
 
+	clusterName := d.Get("name").(string)
+	existingClusters, _, err := c.VirtualizationAPI.VirtualizationClustersList(auth).Name([]string{clusterName}).Execute()
+	if err != nil {
+		return diag.Errorf("failed to list clusters: %s", err.Error())
+	}
+
+	// If a cluster with the same name exists, use its ID and skip creation
+	if len(existingClusters.Results) > 0 {
+		d.SetId(existingClusters.Results[0].Id)
+		return resourceClusterRead(ctx, d, meta)
+	}
+
 	// Prepare ClusterRequest
 	var cluster nb.ClusterRequest
-	cluster.Name = d.Get("name").(string)
+	cluster.Name = clusterName
 	cluster.ClusterType = nb.BulkWritableCableRequestStatus{
 		Id: &nb.BulkWritableCableRequestStatusId{
 			String: stringPtr(d.Get("cluster_type_id").(string)),

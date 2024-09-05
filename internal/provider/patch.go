@@ -20,3 +20,12 @@ func (s *SecurityProviderNautobotToken) Intercept(ctx context.Context, req *http
 	req.Header.Set("Authorization", fmt.Sprintf("Token %s", s.token))
 	return nil
 }
+
+func stringPtr(s string) *string {
+	return &s
+}
+
+func int32Ptr(i int) *int32 {
+	val := int32(i)
+	return &val
+}

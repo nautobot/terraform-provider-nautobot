@@ -60,3 +60,15 @@ output "cluster_details" {
 output "cluster_id" {
   value = data.nautobot_cluster.example.clusters[0].id
 }
+
+data "nautobot_virtual_machine" "example" {
+  depends_on = [nautobot_virtual_machine.new]
+}
+
+output "vm_details" {
+  value = data.nautobot_virtual_machine.example.virtual_machines[0]
+}
+
+output "vm_id" {
+  value = data.nautobot_virtual_machine.example.virtual_machines[0].id
+}
