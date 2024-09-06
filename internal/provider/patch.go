@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+
+	nb "github.com/TobiPeterG/go-nautobot"
 )
 
 func NewSecurityProviderNautobotToken(t string) (*SecurityProviderNautobotToken, error) {
@@ -28,4 +30,30 @@ func stringPtr(s string) *string {
 func int32Ptr(i int) *int32 {
 	val := int32(i)
 	return &val
+}
+
+func getStatusName(ctx context.Context, c *nb.APIClient, token string, statusID string) (string, error) {
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    token,
+				Prefix: "Token",
+			},
+		},
+	)
+
+	// Fetch the status using the status ID
+	status, _, err := c.ExtrasAPI.ExtrasStatusesRetrieve(auth, statusID).Execute()
+	if err != nil {
+		return "", err
+	}
+
+	// No need to dereference, just check if the string is empty
+	if status.Name != "" {
+		return status.Name, nil
+	}
+
+	return "", fmt.Errorf("status name not found for ID %s", statusID)
 }

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	nb "github.com/TobiPeterG/go-nautobot"
@@ -12,76 +11,68 @@ import (
 
 func dataSourceCluster() *schema.Resource {
 	return &schema.Resource{
-		Description: "Retrieves information about clusters in Nautobot.",
+		Description: "Retrieves information about a specific cluster in Nautobot.",
 
 		ReadContext: dataSourceClusterRead,
 
 		Schema: map[string]*schema.Schema{
-			"clusters": {
-				Type:     schema.TypeList,
-				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"id": {
-							Description: "The UUID of the cluster.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"name": {
-							Description: "The name of the cluster.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"cluster_type_id": {
-							Description: "The ID of the cluster type.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"cluster_group_id": {
-							Description: "The ID of the cluster group.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"tenant_id": {
-							Description: "The ID of the tenant associated with the cluster.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"location_id": {
-							Description: "The ID of the location associated with the cluster.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"tags_ids": {
-							Description: "The IDs of the tags associated with the cluster.",
-							Type:        schema.TypeList,
-							Computed:    true,
-							Elem: &schema.Schema{
-								Type: schema.TypeString,
-							},
-						},
-						"comments": {
-							Description: "Comments or notes about the cluster.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"custom_fields": {
-							Description: "Custom fields associated with the cluster.",
-							Type:        schema.TypeMap,
-							Computed:    true,
-						},
-						"created": {
-							Description: "The creation date of the cluster.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-						"last_updated": {
-							Description: "The last update date of the cluster.",
-							Type:        schema.TypeString,
-							Computed:    true,
-						},
-					},
+			"name": {
+				Description: "The name of the cluster.",
+				Type:        schema.TypeString,
+				Required:    true,
+			},
+			"id": {
+				Description: "The UUID of the cluster.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
+			"cluster_type_id": {
+				Description: "The ID of the cluster type.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
+			"cluster_group_id": {
+				Description: "The ID of the cluster group.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
+			"tenant_id": {
+				Description: "The ID of the tenant associated with the cluster.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
+			"location_id": {
+				Description: "The ID of the location associated with the cluster.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
+			"tags_ids": {
+				Description: "The IDs of the tags associated with the cluster.",
+				Type:        schema.TypeList,
+				Computed:    true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
 				},
+			},
+			"comments": {
+				Description: "Comments or notes about the cluster.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
+			"custom_fields": {
+				Description: "Custom fields associated with the cluster.",
+				Type:        schema.TypeMap,
+				Computed:    true,
+			},
+			"created": {
+				Description: "The creation date of the cluster.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
+			"last_updated": {
+				Description: "The last update date of the cluster.",
+				Type:        schema.TypeString,
+				Computed:    true,
 			},
 		},
 	}
@@ -91,7 +82,6 @@ func dataSourceClusterRead(ctx context.Context, d *schema.ResourceData, meta int
 	var diags diag.Diagnostics
 
 	c := meta.(*apiClient).Client
-	s := meta.(*apiClient).Server
 	t := meta.(*apiClient).Token.token
 
 	// Auth context
@@ -106,83 +96,80 @@ func dataSourceClusterRead(ctx context.Context, d *schema.ResourceData, meta int
 		},
 	)
 
-	// Fetch clusters list
-	rsp, _, err := c.VirtualizationAPI.VirtualizationClustersList(auth).Execute()
+	// Fetch the cluster name from Terraform configuration
+	clusterName := d.Get("name").(string)
+
+	// Fetch clusters by name
+	rsp, _, err := c.VirtualizationAPI.VirtualizationClustersList(auth).Name([]string{clusterName}).Execute()
 	if err != nil {
-		return diag.Errorf("failed to get clusters list from %s: %s", s, err.Error())
+		return diag.Errorf("failed to get cluster with name %s: %s", clusterName, err.Error())
 	}
 
-	results := rsp.Results
-	list := make([]map[string]interface{}, 0)
-
-	// Iterate over the results and map each cluster to the format expected by Terraform
-	for _, cluster := range results {
-		createdStr := ""
-		if cluster.Created.IsSet() && cluster.Created.Get() != nil {
-			createdStr = cluster.Created.Get().Format(time.RFC3339)
-		}
-
-		lastUpdatedStr := ""
-		if cluster.LastUpdated.IsSet() && cluster.LastUpdated.Get() != nil {
-			lastUpdatedStr = cluster.LastUpdated.Get().Format(time.RFC3339)
-		}
-
-		// Prepare itemMap with mandatory fields
-		itemMap := map[string]interface{}{
-			"id":            cluster.Id,
-			"name":          cluster.Name,
-			"comments":      cluster.Comments,
-			"created":       createdStr,
-			"last_updated":  lastUpdatedStr,
-			"custom_fields": cluster.CustomFields,
-		}
-
-		// Extract cluster_type_id safely
-		if cluster.ClusterType.Id != nil && cluster.ClusterType.Id.String != nil {
-			itemMap["cluster_type_id"] = *cluster.ClusterType.Id.String
-		}
-
-		// Handle nullable ClusterGroup
-		if cluster.ClusterGroup.IsSet() {
-			if clusterGroup := cluster.ClusterGroup.Get(); clusterGroup != nil && clusterGroup.Id != nil {
-				itemMap["cluster_group_id"] = *clusterGroup.Id.String
-			}
-		}
-
-		// Handle nullable Tenant
-		if cluster.Tenant.IsSet() {
-			if tenant := cluster.Tenant.Get(); tenant != nil && tenant.Id != nil {
-				itemMap["tenant_id"] = *tenant.Id.String
-			}
-		}
-
-		// Handle nullable Location
-		if cluster.Location.IsSet() {
-			if location := cluster.Location.Get(); location != nil && location.Id != nil {
-				itemMap["location_id"] = *location.Id.String
-			}
-		}
-
-		// Handle Tags
-		var tags []string
-		for _, tag := range cluster.Tags {
-			if tag.Id != nil && tag.Id.String != nil {
-				tags = append(tags, *tag.Id.String)
-			}
-		}
-		itemMap["tags_ids"] = tags
-
-		// Add the cluster to the list
-		list = append(list, itemMap)
+	// Ensure at least one result is returned
+	if len(rsp.Results) == 0 {
+		return diag.Errorf("no cluster found with name %s", clusterName)
 	}
 
-	// Set the clusters list in the resource data
-	if err := d.Set("clusters", list); err != nil {
-		return diag.FromErr(err)
+	cluster := rsp.Results[0]
+
+	// Set basic fields
+	d.Set("id", cluster.Id)
+	d.Set("name", cluster.Name)
+	d.Set("comments", cluster.Comments)
+
+	// Convert created and last updated fields to strings
+	createdStr := ""
+	if cluster.Created.IsSet() && cluster.Created.Get() != nil {
+		createdStr = cluster.Created.Get().Format(time.RFC3339)
+	}
+	d.Set("created", createdStr)
+
+	lastUpdatedStr := ""
+	if cluster.LastUpdated.IsSet() && cluster.LastUpdated.Get() != nil {
+		lastUpdatedStr = cluster.LastUpdated.Get().Format(time.RFC3339)
+	}
+	d.Set("last_updated", lastUpdatedStr)
+
+	// Handle cluster_type_id
+	if cluster.ClusterType.Id != nil && cluster.ClusterType.Id.String != nil {
+		d.Set("cluster_type_id", *cluster.ClusterType.Id.String)
 	}
 
-	// Always run
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
+	// Handle cluster_group_id
+	if cluster.ClusterGroup.IsSet() {
+		if clusterGroup := cluster.ClusterGroup.Get(); clusterGroup != nil && clusterGroup.Id != nil {
+			d.Set("cluster_group_id", *clusterGroup.Id.String)
+		}
+	}
+
+	// Handle tenant_id
+	if cluster.Tenant.IsSet() {
+		if tenant := cluster.Tenant.Get(); tenant != nil && tenant.Id != nil {
+			d.Set("tenant_id", *tenant.Id.String)
+		}
+	}
+
+	// Handle location_id
+	if cluster.Location.IsSet() {
+		if location := cluster.Location.Get(); location != nil && location.Id != nil {
+			d.Set("location_id", *location.Id.String)
+		}
+	}
+
+	// Handle tags
+	var tags []string
+	for _, tag := range cluster.Tags {
+		if tag.Id != nil && tag.Id.String != nil {
+			tags = append(tags, *tag.Id.String)
+		}
+	}
+	d.Set("tags_ids", tags)
+
+	// Handle custom fields
+	d.Set("custom_fields", cluster.CustomFields)
+
+	// Set the resource ID
+	d.SetId(cluster.Id)
 
 	return diags
 }
