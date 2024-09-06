@@ -62,3 +62,9 @@ resource "nautobot_virtual_machine" "new" {
 
 #  tags_ids = ["tag1", "tag2"] # Optional tags
 }
+
+resource "nautobot_vm_interface" "new" {
+  name = "eth0"
+  virtual_machine_id = nautobot_virtual_machine.new.id
+  status = "Active"
+}

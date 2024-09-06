@@ -71,6 +71,7 @@ func New(version string) func() *schema.Provider {
 				"nautobot_cluster_type":    resourceClusterType(),
 				"nautobot_manufacturer":    resourceManufacturer(),
 				"nautobot_virtual_machine": resourceVirtualMachine(),
+				"nautobot_vm_interface":    resourceVMInterface(),
 			},
 		}
 
