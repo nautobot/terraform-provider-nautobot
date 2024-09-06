@@ -59,6 +59,8 @@ func New(version string) func() *schema.Provider {
 				"nautobot_manufacturer":     dataSourceManufacturer(),
 				"nautobot_manufacturers":    dataSourceManufacturers(),
 				"nautobot_graphql":          dataSourceGraphQL(),
+				"nautobot_prefix":           dataSourcePrefix(),
+				"nautobot_prefixes":         dataSourcePrefixes(),
 				"nautobot_virtual_machine":  dataSourceVirtualMachine(),
 				"nautobot_virtual_machines": dataSourceVirtualMachines(),
 				"nautobot_vlan":             dataSourceVLAN(),

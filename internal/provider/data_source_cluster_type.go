@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	nb "github.com/TobiPeterG/go-nautobot"
@@ -114,6 +113,8 @@ func dataSourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta
 
 	clusterType := rsp.Results[0]
 
+	d.SetId(clusterType.Id)
+
 	createdStr := ""
 	if clusterType.Created.IsSet() && clusterType.Created.Get() != nil {
 		createdStr = clusterType.Created.Get().Format(time.RFC3339)
@@ -137,9 +138,6 @@ func dataSourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta
 	d.Set("last_updated", lastUpdatedStr)
 	d.Set("notes_url", clusterType.NotesUrl)
 	d.Set("custom_fields", clusterType.CustomFields)
-
-	// Set the ID for the resource
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 
 	return diags
 }

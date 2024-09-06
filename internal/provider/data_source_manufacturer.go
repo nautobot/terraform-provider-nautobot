@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	nb "github.com/TobiPeterG/go-nautobot"
@@ -129,6 +128,8 @@ func dataSourceManufacturerRead(ctx context.Context, d *schema.ResourceData, met
 
 	manufacturer := rsp.Results[0]
 
+	d.SetId(manufacturer.Id)
+
 	createdStr := ""
 	if manufacturer.Created.IsSet() && manufacturer.Created.Get() != nil {
 		createdStr = manufacturer.Created.Get().Format(time.RFC3339)
@@ -155,9 +156,6 @@ func dataSourceManufacturerRead(ctx context.Context, d *schema.ResourceData, met
 	d.Set("last_updated", lastUpdatedStr)
 	d.Set("notes_url", manufacturer.NotesUrl)
 	d.Set("custom_fields", manufacturer.CustomFields)
-
-	// Set the ID for the resource
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 
 	return diags
 }

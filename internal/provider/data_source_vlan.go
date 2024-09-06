@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	nb "github.com/TobiPeterG/go-nautobot"
@@ -125,6 +124,8 @@ func dataSourceVLANRead(ctx context.Context, d *schema.ResourceData, meta interf
 
 	vlan := rsp.Results[0]
 
+	d.SetId(vlan.Id)
+
 	createdStr := ""
 	if vlan.Created.IsSet() && vlan.Created.Get() != nil {
 		createdStr = vlan.Created.Get().Format(time.RFC3339)
@@ -191,9 +192,6 @@ func dataSourceVLANRead(ctx context.Context, d *schema.ResourceData, meta interf
 		}
 	}
 	d.Set("tags_ids", tags)
-
-	// Set the ID for the resource
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 
 	return diags
 }

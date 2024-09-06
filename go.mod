@@ -3,7 +3,7 @@ module github.com/nautobot/terraform-provider-nautobot
 go 1.20
 
 require (
-	github.com/TobiPeterG/go-nautobot v1.5.8-beta.0.20240905091605-ef58474dc9d0
+	github.com/TobiPeterG/go-nautobot v1.5.8-beta.0.20240906150152-24d836c795fe
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-log v0.8.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.26.1

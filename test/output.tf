@@ -154,3 +154,28 @@ output "vlans_details" {
 output "vlans_id" {
   value = data.nautobot_vlans.example.vlans[0].id
 }
+
+
+data "nautobot_prefix" "example" {
+  depends_on = [data.nautobot_vlan.example]
+  vlan_id = data.nautobot_vlan.example.id
+}
+
+output "prefix_details" {
+  value = data.nautobot_prefix.example
+}
+
+output "prefix_id" {
+  value = data.nautobot_prefix.example.id
+}
+
+data "nautobot_prefixes" "example" {
+}
+
+output "prefixes_details" {
+  value = data.nautobot_prefixes.example.prefixes[0]
+}
+
+output "prefixes_id" {
+  value = data.nautobot_prefixes.example.prefixes[0].id
+}

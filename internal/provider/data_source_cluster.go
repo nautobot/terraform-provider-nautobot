@@ -112,6 +112,8 @@ func dataSourceClusterRead(ctx context.Context, d *schema.ResourceData, meta int
 
 	cluster := rsp.Results[0]
 
+	d.SetId(cluster.Id)
+
 	// Set basic fields
 	d.Set("id", cluster.Id)
 	d.Set("name", cluster.Name)
@@ -167,9 +169,6 @@ func dataSourceClusterRead(ctx context.Context, d *schema.ResourceData, meta int
 
 	// Handle custom fields
 	d.Set("custom_fields", cluster.CustomFields)
-
-	// Set the resource ID
-	d.SetId(cluster.Id)
 
 	return diags
 }

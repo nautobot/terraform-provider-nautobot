@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	nb "github.com/TobiPeterG/go-nautobot"
@@ -142,6 +141,8 @@ func dataSourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, m
 
 	vm := rsp.Results[0]
 
+	d.SetId(vm.Id)
+
 	createdStr := ""
 	if vm.Created.IsSet() && vm.Created.Get() != nil {
 		createdStr = vm.Created.Get().Format(time.RFC3339)
@@ -211,9 +212,6 @@ func dataSourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, m
 			d.Set("primary_ip6_id", *primaryIp6.Id.String)
 		}
 	}
-
-	// Set the ID for the resource
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 
 	return diags
 }
