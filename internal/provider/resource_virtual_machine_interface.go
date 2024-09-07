@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
 	nb "github.com/TobiPeterG/go-nautobot"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -70,6 +71,14 @@ func resourceVMInterface() *schema.Resource {
 			},
 			"tags": {
 				Description: "Tags associated with the interface.",
+				Type:        schema.TypeList,
+				Optional:    true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
+			"ip_addresses": {
+				Description: "List of IP addresses to assign to the VM interface.",
 				Type:        schema.TypeList,
 				Optional:    true,
 				Elem: &schema.Schema{
@@ -171,6 +180,17 @@ func resourceVMInterfaceCreate(ctx context.Context, d *schema.ResourceData, meta
 	// Set resource ID
 	d.SetId(rsp.Id)
 
+	// Assign IP addresses to the VM interface
+	if v, ok := d.GetOk("ip_addresses"); ok {
+		ipAddresses := v.([]interface{})
+		for _, ip := range ipAddresses {
+			err := assignIPAddressToVMInterface(ctx, c, t, ip.(string), rsp.Id)
+			if err != nil {
+				return diag.Errorf("failed to assign IP address to VM interface: %s", err.Error())
+			}
+		}
+	}
+
 	return resourceVMInterfaceRead(ctx, d, meta)
 }
 
@@ -208,6 +228,13 @@ func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta i
 	d.Set("untagged_vlan_id", vmInterface.UntaggedVlan)
 	d.Set("created", vmInterface.Created)
 	d.Set("last_updated", vmInterface.LastUpdated)
+
+	// Fetch assigned IP addresses
+	assignedIPs := []string{}
+	for _, ip := range vmInterface.IpAddresses {
+		assignedIPs = append(assignedIPs, *ip.Id.String)
+	}
+	d.Set("ip_addresses", assignedIPs)
 
 	return nil
 }
@@ -280,6 +307,27 @@ func resourceVMInterfaceUpdate(ctx context.Context, d *schema.ResourceData, meta
 		return diag.Errorf("failed to update VM interface: %s", err.Error())
 	}
 
+	// Update IP addresses if they have changed
+	if d.HasChange("ip_addresses") {
+		oldIPs, newIPs := d.GetChange("ip_addresses")
+
+		// Remove old IP addresses
+		for _, oldIP := range oldIPs.([]interface{}) {
+			err := removeIPAddressFromVMInterface(ctx, c, t, oldIP.(string), vmInterfaceId) // Pass vmInterfaceId here
+			if err != nil {
+				return diag.Errorf("failed to remove IP address from VM interface: %s", err.Error())
+			}
+		}
+
+		// Assign new IP addresses
+		for _, newIP := range newIPs.([]interface{}) {
+			err := assignIPAddressToVMInterface(ctx, c, t, newIP.(string), vmInterfaceId)
+			if err != nil {
+				return diag.Errorf("failed to assign IP address to VM interface: %s", err.Error())
+			}
+		}
+	}
+
 	return resourceVMInterfaceRead(ctx, d, meta)
 }
 
@@ -308,6 +356,94 @@ func resourceVMInterfaceDelete(ctx context.Context, d *schema.ResourceData, meta
 
 	// Clear the ID
 	d.SetId("")
+
+	return nil
+}
+
+// Helper function to assign an IP address to a VM interface
+func assignIPAddressToVMInterface(ctx context.Context, c *nb.APIClient, token, ipAddressID, vmInterfaceID string) error {
+	// Auth context
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    token,
+				Prefix: "Token",
+			},
+		},
+	)
+
+	// Wrap the ipAddressID and vmInterfaceID in BulkWritableCableRequestStatusId
+	ipAddressStatusId := nb.BulkWritableCableRequestStatusId{String: &ipAddressID}
+	vmInterfaceStatusId := nb.BulkWritableCableRequestStatusId{String: &vmInterfaceID}
+
+	// Create BulkWritableCircuitRequestTenant for the VM Interface
+	vmInterfaceTenant := nb.BulkWritableCircuitRequestTenant{
+		Id: &vmInterfaceStatusId,
+	}
+
+	// Create the NullableBulkWritableCircuitRequestTenant as a value (not a pointer)
+	vmInterfaceNullableTenant := nb.NullableBulkWritableCircuitRequestTenant{}
+	vmInterfaceNullableTenant.Set(&vmInterfaceTenant)
+
+	// Prepare the request to assign the IP address to the VM interface
+	ipToInterfaceRequest := nb.IPAddressToInterfaceRequest{
+		IpAddress: nb.BulkWritableCableRequestStatus{
+			Id: &ipAddressStatusId, // Assign the IP address ID
+		},
+		// Properly set VmInterface using NullableBulkWritableCircuitRequestTenant
+		VmInterface: vmInterfaceNullableTenant, // Use the value, not a pointer
+	}
+
+	// Call the API to link the IP address with the VM interface
+	_, _, err := c.IpamAPI.IpamIpAddressToInterfaceCreate(auth).IPAddressToInterfaceRequest(ipToInterfaceRequest).Execute()
+	if err != nil {
+		return fmt.Errorf("failed to assign IP address to VM interface: %v", err)
+	}
+
+	return nil
+}
+
+// Helper function to remove an IP address from a VM interface
+func removeIPAddressFromVMInterface(ctx context.Context, c *nb.APIClient, token, ipAddressID, vmInterfaceID string) error {
+	// Auth context
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    token,
+				Prefix: "Token",
+			},
+		},
+	)
+
+	// Retrieve the IP address object to find the related VM interface assignment
+	ipAddress, _, err := c.IpamAPI.IpamIpAddressesRetrieve(auth, ipAddressID).Execute()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve IP address: %v", err)
+	}
+
+	// Look for the specific VM interface assignment in the IP address object
+	var assignmentID string
+	for _, vmInterface := range ipAddress.VmInterfaces {
+		if vmInterface.Id.String != nil && *vmInterface.Id.String == vmInterfaceID {
+			assignmentID = *vmInterface.Id.String
+			break
+		}
+	}
+
+	// If no assignment is found, return an error
+	if assignmentID == "" {
+		return fmt.Errorf("no assignment found for IP address %s and VM interface %s", ipAddressID, vmInterfaceID)
+	}
+
+	// Call IpamIpAddressToInterfaceDestroy to remove the assignment
+	_, err = c.IpamAPI.IpamIpAddressToInterfaceDestroy(auth, assignmentID).Execute()
+	if err != nil {
+		return fmt.Errorf("failed to remove IP address assignment: %v", err)
+	}
 
 	return nil
 }

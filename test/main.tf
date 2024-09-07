@@ -39,6 +39,20 @@ resource "nautobot_cluster" "new" {
   }
 }
 
+data "nautobot_vlan" "example" {
+  name = "pek02-106-mgmt"
+}
+
+data "nautobot_prefix" "example" {
+  depends_on = [data.nautobot_vlan.example]
+  vlan_id = data.nautobot_vlan.example.id
+}
+
+resource "nautobot_available_ip" "example" {
+  prefix_id = data.nautobot_prefix.example.id
+  status    = "Active"
+}
+
 # Example virtual machine resource
 resource "nautobot_virtual_machine" "new" {
   name            = "Example VM"
@@ -51,7 +65,7 @@ resource "nautobot_virtual_machine" "new" {
 #  tenant_id          = "some-tenant-id" # Optional
 #  platform_id        = "Linux"          # Optional
 #  role_id            = "Web Server"     # Optional
-#  primary_ip4_id     = "192.168.0.100"  # Optional
+#  primary_ip4_id     = nautobot_available_ip.example.id
 #  primary_ip6_id     = "2001:db8::100"  # Optional
 #  software_version_id = "v1.0"          # Optional
 
@@ -67,4 +81,13 @@ resource "nautobot_vm_interface" "new" {
   name = "eth0"
   virtual_machine_id = nautobot_virtual_machine.new.id
   status = "Active"
+  ip_addresses = [
+    nautobot_available_ip.example.id
+  ]
+}
+
+resource "nautobot_vm_primary_ip" "new" {
+  depends_on = [nautobot_vm_interface.new]
+  virtual_machine_id = nautobot_virtual_machine.new.id
+  primary_ip4_id     = nautobot_available_ip.example.id
 }

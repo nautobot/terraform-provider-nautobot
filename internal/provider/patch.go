@@ -57,3 +57,27 @@ func getStatusName(ctx context.Context, c *nb.APIClient, token string, statusID 
 
 	return "", fmt.Errorf("status name not found for ID %s", statusID)
 }
+
+func getStatusID(ctx context.Context, c *nb.APIClient, token string, statusName string) (string, error) {
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    token,
+				Prefix: "Token",
+			},
+		},
+	)
+
+	statuses, _, err := c.ExtrasAPI.ExtrasStatusesList(auth).Name([]string{statusName}).Execute()
+	if err != nil {
+		return "", err
+	}
+
+	if len(statuses.Results) == 0 {
+		return "", fmt.Errorf("status %s not found", statusName)
+	}
+
+	return statuses.Results[0].Id, nil
+}

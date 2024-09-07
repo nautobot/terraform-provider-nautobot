@@ -82,6 +82,42 @@ output "data_source_example" {
   }
 }
 
+output "prefix_details" {
+  value = data.nautobot_prefix.example
+}
+
+output "prefix_id" {
+  value = data.nautobot_prefix.example.id
+}
+
+data "nautobot_prefixes" "example" {
+}
+
+output "prefixes_details" {
+  value = data.nautobot_prefixes.example.prefixes[0]
+}
+
+output "prefixes_id" {
+  value = data.nautobot_prefixes.example.prefixes[0].id
+}
+
+#Currently broken
+data "nautobot_available_ip" "example" {
+  prefix_id = data.nautobot_prefix.example.id
+}
+
+output "available_ip_address" {
+  value = data.nautobot_available_ip.example.address
+}
+
+output "available_ip_version" {
+  value = data.nautobot_available_ip.example.ip_version
+}
+
+output "allocated_ip" {
+  value = nautobot_available_ip.example.address
+}
+
 
 data "nautobot_graphql" "nodes" {
   query = <<EOF
@@ -121,7 +157,7 @@ output "vm_id" {
 
 
 data "nautobot_virtual_machines" "example" {
-  depends_on = [nautobot_virtual_machine.new]
+  depends_on = [nautobot_vm_primary_ip.new]
 }
 
 output "vms_details" {
@@ -130,10 +166,6 @@ output "vms_details" {
 
 output "vms_id" {
   value = data.nautobot_virtual_machines.example.virtual_machines[0].id
-}
-
-data "nautobot_vlan" "example" {
-  name = "pek02-106-mgmt"
 }
 
 output "vlan_details" {
@@ -153,29 +185,4 @@ output "vlans_details" {
 
 output "vlans_id" {
   value = data.nautobot_vlans.example.vlans[0].id
-}
-
-
-data "nautobot_prefix" "example" {
-  depends_on = [data.nautobot_vlan.example]
-  vlan_id = data.nautobot_vlan.example.id
-}
-
-output "prefix_details" {
-  value = data.nautobot_prefix.example
-}
-
-output "prefix_id" {
-  value = data.nautobot_prefix.example.id
-}
-
-data "nautobot_prefixes" "example" {
-}
-
-output "prefixes_details" {
-  value = data.nautobot_prefixes.example.prefixes[0]
-}
-
-output "prefixes_id" {
-  value = data.nautobot_prefixes.example.prefixes[0].id
 }

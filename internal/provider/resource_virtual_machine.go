@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 
 	nb "github.com/TobiPeterG/go-nautobot"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -122,30 +121,6 @@ func resourceVirtualMachine() *schema.Resource {
 			},
 		},
 	}
-}
-
-func getStatusID(ctx context.Context, c *nb.APIClient, token string, statusName string) (string, error) {
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    token,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	statuses, _, err := c.ExtrasAPI.ExtrasStatusesList(auth).Name([]string{statusName}).Execute()
-	if err != nil {
-		return "", err
-	}
-
-	if len(statuses.Results) == 0 {
-		return "", fmt.Errorf("status %s not found", statusName)
-	}
-
-	return statuses.Results[0].Id, nil
 }
 
 func resourceVirtualMachineCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {

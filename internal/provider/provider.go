@@ -52,6 +52,7 @@ func New(version string) func() *schema.Provider {
 				},
 			},
 			DataSourcesMap: map[string]*schema.Resource{
+				"nautobot_available_ip":     dataSourceAvailableIP(),
 				"nautobot_cluster":          dataSourceCluster(),
 				"nautobot_clusters":         dataSourceClusters(),
 				"nautobot_cluster_type":     dataSourceClusterType(),
@@ -67,11 +68,13 @@ func New(version string) func() *schema.Provider {
 				"nautobot_vlans":            dataSourceVLANs(),
 			},
 			ResourcesMap: map[string]*schema.Resource{
+				"nautobot_available_ip":    resourceAvailableIPAddress(),
 				"nautobot_cluster":         resourceCluster(),
 				"nautobot_cluster_type":    resourceClusterType(),
 				"nautobot_manufacturer":    resourceManufacturer(),
 				"nautobot_virtual_machine": resourceVirtualMachine(),
 				"nautobot_vm_interface":    resourceVMInterface(),
+				"nautobot_vm_primary_ip":   resourcePrimaryIPAddressForVM(),
 			},
 		}
 
