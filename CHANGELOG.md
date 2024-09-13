@@ -1,3 +1,7 @@
-## 0.1.0 (Unreleased)
+## 0.0.1-alpha-1
 
-BACKWARDS INCOMPATIBILITIES / NOTES:
+- Boost Go minimum version to 1.21.13
+
+## 0.0.1-alpha-0
+
+- Initial release
