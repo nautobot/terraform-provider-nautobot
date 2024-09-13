@@ -7,7 +7,7 @@ This project is in **beta** development stage, and it's suitable to change befor
 ## Requirements
 
 - [Terraform](https://www.terraform.io/downloads.html) >= 0.13.x
-- [Go](https://golang.org/doc/install) >= 1.20
+- [Go](https://golang.org/doc/install) >= 1.21.13
 
 ## Building The Provider
 
