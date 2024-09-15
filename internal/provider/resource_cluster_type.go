@@ -43,11 +43,6 @@ func resourceClusterType() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"cluster_count": {
-				Description: "Count of clusters associated with the cluster type.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
 			"name": {
 				Description: "Cluster type's name.",
 				Type:        schema.TypeString,
@@ -56,11 +51,6 @@ func resourceClusterType() *schema.Resource {
 			"description": {
 				Description: "Description for the cluster type.",
 				Type:        schema.TypeString,
-				Optional:    true,
-			},
-			"custom_fields": {
-				Description: "Custom fields associated with the cluster type.",
-				Type:        schema.TypeMap,
 				Optional:    true,
 			},
 			"created": {
@@ -119,10 +109,6 @@ func resourceClusterTypeCreate(ctx context.Context, d *schema.ResourceData, meta
 		clusterType.Description = &description
 	}
 
-	if v, ok := d.GetOk("custom_fields"); ok {
-		clusterType.CustomFields = v.(map[string]interface{})
-	}
-
 	// Create the cluster type using VirtualizationAPI
 	rsp, _, err := c.VirtualizationAPI.VirtualizationClusterTypesCreate(auth).ClusterTypeRequest(clusterType).Execute()
 	if err != nil {
@@ -164,7 +150,6 @@ func resourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta i
 	d.Set("display", clusterType.Display)
 	d.Set("url", clusterType.Url)
 	d.Set("natural_slug", clusterType.NaturalSlug)
-	d.Set("cluster_count", clusterType.ClusterCount)
 	if clusterType.Description != nil {
 		d.Set("description", *clusterType.Description)
 	}
@@ -203,9 +188,6 @@ func resourceClusterTypeUpdate(ctx context.Context, d *schema.ResourceData, meta
 	if d.HasChange("description") {
 		description := d.Get("description").(string)
 		clusterType.Description = &description
-	}
-	if d.HasChange("custom_fields") {
-		clusterType.CustomFields = d.Get("custom_fields").(map[string]interface{})
 	}
 
 	// Call the API to update the cluster type

@@ -46,26 +46,6 @@ func dataSourceManufacturer() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"cloud_account_count": {
-				Description: "Count of cloud accounts associated with the manufacturer.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
-			"devicetype_count": {
-				Description: "Count of device types associated with the manufacturer.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
-			"inventoryitem_count": {
-				Description: "Count of inventory items associated with the manufacturer.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
-			"platform_count": {
-				Description: "Count of platforms associated with the manufacturer.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
 			"description": {
 				Description: "Manufacturer's description.",
 				Type:        schema.TypeString,
@@ -84,11 +64,6 @@ func dataSourceManufacturer() *schema.Resource {
 			"notes_url": {
 				Description: "Notes URL for the manufacturer.",
 				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"custom_fields": {
-				Description: "Custom fields for the manufacturer.",
-				Type:        schema.TypeMap,
 				Computed:    true,
 			},
 		},
@@ -146,16 +121,11 @@ func dataSourceManufacturerRead(ctx context.Context, d *schema.ResourceData, met
 	d.Set("display", manufacturer.Display)
 	d.Set("url", manufacturer.Url)
 	d.Set("natural_slug", manufacturer.NaturalSlug)
-	d.Set("cloud_account_count", manufacturer.CloudAccountCount)
-	d.Set("devicetype_count", manufacturer.DeviceTypeCount)
-	d.Set("inventoryitem_count", manufacturer.InventoryItemCount)
-	d.Set("platform_count", manufacturer.PlatformCount)
 	d.Set("name", manufacturer.Name)
 	d.Set("description", manufacturer.Description)
 	d.Set("created", createdStr)
 	d.Set("last_updated", lastUpdatedStr)
 	d.Set("notes_url", manufacturer.NotesUrl)
-	d.Set("custom_fields", manufacturer.CustomFields)
 
 	return diags
 }

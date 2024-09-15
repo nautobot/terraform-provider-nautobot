@@ -95,11 +95,6 @@ func dataSourceVirtualMachines() *schema.Resource {
 								Type: schema.TypeString,
 							},
 						},
-						"custom_fields": {
-							Description: "Custom fields associated with the virtual machine.",
-							Type:        schema.TypeMap,
-							Computed:    true,
-						},
 						"created": {
 							Description: "The creation date of the virtual machine.",
 							Type:        schema.TypeString,
@@ -157,15 +152,15 @@ func dataSourceVirtualMachinesRead(ctx context.Context, d *schema.ResourceData, 
 		}
 
 		itemMap := map[string]interface{}{
-			"id":            vm.Id,
-			"name":          vm.Name,
-			"vcpus":         vm.Vcpus.Get(),
-			"memory":        vm.Memory.Get(),
-			"disk":          vm.Disk.Get(),
-			"comments":      vm.Comments,
-			"created":       createdStr,
-			"last_updated":  lastUpdatedStr,
-			"custom_fields": vm.CustomFields,
+			"id":           vm.Id,
+			"name":         vm.Name,
+			"vcpus":        vm.Vcpus.Get(),
+			"memory":       vm.Memory.Get(),
+			"disk":         vm.Disk.Get(),
+			"comments":     vm.Comments,
+			"created":      createdStr,
+			"last_updated": lastUpdatedStr,
+			"tags_ids":     vm.Tags,
 		}
 
 		// Extract cluster_id, status, and other fields

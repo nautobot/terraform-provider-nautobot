@@ -47,11 +47,6 @@ func dataSourceClusterTypes() *schema.Resource {
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"cluster_count": {
-							Description: "Count of clusters associated with the cluster type.",
-							Type:        schema.TypeInt,
-							Computed:    true,
-						},
 						"name": {
 							Description: "The name of the cluster type.",
 							Type:        schema.TypeString,
@@ -76,11 +71,6 @@ func dataSourceClusterTypes() *schema.Resource {
 							Description: "Notes URL for the cluster type.",
 							Type:        schema.TypeString,
 							Computed:    true,
-						},
-						"custom_fields": {
-							Description: "Custom fields for the cluster type.",
-							Type:        schema.TypeMap,
-							Optional:    true,
 						},
 					},
 				},
@@ -129,18 +119,16 @@ func dataSourceClusterTypesRead(ctx context.Context, d *schema.ResourceData, met
 		}
 
 		itemMap := map[string]interface{}{
-			"id":            clusterType.Id,
-			"object_type":   clusterType.ObjectType,
-			"display":       clusterType.Display,
-			"url":           clusterType.Url,
-			"natural_slug":  clusterType.NaturalSlug,
-			"cluster_count": clusterType.ClusterCount,
-			"name":          clusterType.Name,
-			"description":   clusterType.Description,
-			"created":       createdStr,
-			"last_updated":  lastUpdatedStr,
-			"notes_url":     clusterType.NotesUrl,
-			"custom_fields": clusterType.CustomFields,
+			"id":           clusterType.Id,
+			"object_type":  clusterType.ObjectType,
+			"display":      clusterType.Display,
+			"url":          clusterType.Url,
+			"natural_slug": clusterType.NaturalSlug,
+			"name":         clusterType.Name,
+			"description":  clusterType.Description,
+			"created":      createdStr,
+			"last_updated": lastUpdatedStr,
+			"notes_url":    clusterType.NotesUrl,
 		}
 		list = append(list, itemMap)
 	}

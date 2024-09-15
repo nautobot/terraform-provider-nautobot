@@ -32,11 +32,6 @@ resource "nautobot_cluster" "new" {
 #  tenant_id          = data.nautobot_tenant.example.id  # Referencing tenant data source
 #  location_id        = "your-location-id"
 #  tags_id            = ["tag1", "tag2"]
-
-  custom_fields = {
-    "custom_field_1" = "value1"
-    "custom_field_2" = "value2"
-  }
 }
 
 data "nautobot_vlan" "example" {
@@ -68,11 +63,6 @@ resource "nautobot_virtual_machine" "new" {
 #  primary_ip4_id     = nautobot_available_ip.example.id
 #  primary_ip6_id     = "2001:db8::100"  # Optional
 #  software_version_id = "v1.0"          # Optional
-
-  custom_fields = {
-    custom_field_1 = "Custom value 1"
-    custom_field_2 = "Custom value 2"
-  }
 
 #  tags_ids = ["tag1", "tag2"] # Optional tags
 }

@@ -97,7 +97,6 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 		},
 	)
 
-	// Fetch all prefixes list
 	rsp, _, err := c.IpamAPI.IpamPrefixesList(auth).Execute()
 	if err != nil {
 		return diag.Errorf("failed to get prefixes: %s", err.Error())
@@ -106,7 +105,6 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 	results := rsp.Results
 	list := make([]map[string]interface{}, 0)
 
-	// Iterate over the results and map each prefix to the format expected by Terraform
 	for _, prefix := range results {
 		createdStr := ""
 		if prefix.Created.IsSet() && prefix.Created.Get() != nil {
@@ -126,7 +124,6 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 			"last_updated": lastUpdatedStr,
 		}
 
-		// Handle status
 		if prefix.Status.Id != nil && prefix.Status.Id.String != nil {
 			statusID := *prefix.Status.Id.String
 			statusName, err := getStatusName(ctx, c, t, statusID)
@@ -136,28 +133,24 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 			itemMap["status"] = statusName
 		}
 
-		// Handle nullable Tenant
 		if prefix.Tenant.IsSet() {
 			if tenant := prefix.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
 				itemMap["tenant_id"] = *tenant.Id.String
 			}
 		}
 
-		// Handle nullable Role
 		if prefix.Role.IsSet() {
 			if role := prefix.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
 				itemMap["role_id"] = *role.Id.String
 			}
 		}
 
-		// Handle nullable RIR
 		if prefix.Rir.IsSet() {
 			if rir := prefix.Rir.Get(); rir != nil && rir.Id != nil && rir.Id.String != nil {
 				itemMap["rir_id"] = *rir.Id.String
 			}
 		}
 
-		// Handle nullable Namespace
 		if prefix.Namespace != nil && prefix.Namespace.Id != nil && prefix.Namespace.Id.String != nil {
 			itemMap["namespace_id"] = *prefix.Namespace.Id.String
 		}
@@ -165,7 +158,6 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 		list = append(list, itemMap)
 	}
 
-	// Set the prefixes list in the resource data
 	if err := d.Set("prefixes", list); err != nil {
 		return diag.FromErr(err)
 	}

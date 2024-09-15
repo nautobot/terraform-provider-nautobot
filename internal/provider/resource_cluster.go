@@ -33,33 +33,28 @@ func resourceCluster() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"cluster_group_id": { // Renamed to cluster_group_id
+			"cluster_group_id": {
 				Description: "ID of the Cluster's group.",
 				Type:        schema.TypeString,
 				Optional:    true,
 			},
-			"tenant_id": { // Renamed to tenant_id
+			"tenant_id": {
 				Description: "ID of the Tenant associated with the cluster.",
 				Type:        schema.TypeString,
 				Optional:    true,
 			},
-			"location_id": { // Renamed to location_id
+			"location_id": {
 				Description: "ID of the Location of the cluster.",
 				Type:        schema.TypeString,
 				Optional:    true,
 			},
-			"tags_ids": { // Renamed to tags_ids
+			"tags_ids": {
 				Description: "IDs of the Tags associated with the cluster.",
 				Type:        schema.TypeList,
 				Optional:    true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
-			},
-			"custom_fields": {
-				Description: "Custom fields associated with the cluster.",
-				Type:        schema.TypeMap,
-				Optional:    true,
 			},
 			"created": {
 				Description: "Creation date of the cluster.",
@@ -158,10 +153,6 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, meta int
 			})
 		}
 		cluster.Tags = tags
-	}
-
-	if v, ok := d.GetOk("custom_fields"); ok {
-		cluster.CustomFields = v.(map[string]interface{})
 	}
 
 	// Create the cluster
@@ -325,9 +316,6 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, meta int
 			})
 		}
 		cluster.Tags = tags
-	}
-	if d.HasChange("custom_fields") {
-		cluster.CustomFields = d.Get("custom_fields").(map[string]interface{})
 	}
 
 	// Call the API to update the cluster

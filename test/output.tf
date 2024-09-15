@@ -101,7 +101,6 @@ output "prefixes_id" {
   value = data.nautobot_prefixes.example.prefixes[0].id
 }
 
-#Currently broken
 data "nautobot_available_ip" "example" {
   prefix_id = data.nautobot_prefix.example.id
 }
@@ -120,6 +119,7 @@ output "allocated_ip" {
 
 
 data "nautobot_graphql" "nodes" {
+  depends_on = [nautobot_virtual_machine.new]
   query = <<EOF
 query {
   virtual_machines {
@@ -143,7 +143,7 @@ output "data_source_graphql_vm" {
 
 
 data "nautobot_virtual_machine" "example" {
-  depends_on = [nautobot_virtual_machine.new]
+  depends_on = [nautobot_vm_primary_ip.new]
   name = nautobot_virtual_machine.new.name
 }
 

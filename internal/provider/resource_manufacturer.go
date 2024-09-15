@@ -31,16 +31,6 @@ func resourceManufacturer() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 			},
-			"custom_fields": {
-				Description: "Manufacturer custom fields.",
-				Type:        schema.TypeMap,
-				Optional:    true,
-			},
-			"devicetype_count": {
-				Description: "Manufacturer's device type count.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
 			"display": {
 				Description: "Manufacturer's display name.",
 				Type:        schema.TypeString,
@@ -49,11 +39,6 @@ func resourceManufacturer() *schema.Resource {
 			"id": {
 				Description: "Manufacturer's UUID.",
 				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"inventoryitem_count": {
-				Description: "Manufacturer's inventory item count.",
-				Type:        schema.TypeInt,
 				Computed:    true,
 			},
 			"last_updated": {
@@ -71,11 +56,6 @@ func resourceManufacturer() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"platform_count": {
-				Description: "Manufacturer's platform count.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
 			"url": {
 				Description: "Manufacturer's URL.",
 				Type:        schema.TypeString,
@@ -89,11 +69,6 @@ func resourceManufacturer() *schema.Resource {
 			"natural_slug": {
 				Description: "Natural slug for the manufacturer.",
 				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"cloud_account_count": {
-				Description: "Manufacturer's cloud account count.",
-				Type:        schema.TypeInt,
 				Computed:    true,
 			},
 		},
@@ -141,12 +116,6 @@ func resourceManufacturerCreate(ctx context.Context, d *schema.ResourceData, met
 		desc := v.(string)
 		m.Description = &desc
 	}
-
-	// Custom fields
-	if v, ok := d.GetOk("custom_fields"); ok {
-		m.CustomFields = v.(map[string]interface{})
-	}
-
 	rsp, _, err := c.DcimAPI.DcimManufacturersCreate(auth).ManufacturerRequest(m).Execute()
 	if err != nil {
 		return diag.Errorf("failed to create manufacturer %s on %s: %s", m.Name, s, err.Error())
@@ -198,10 +167,6 @@ func resourceManufacturerRead(ctx context.Context, d *schema.ResourceData, meta 
 	d.Set("url", manufacturer.Url)
 	d.Set("object_type", manufacturer.ObjectType)
 	d.Set("natural_slug", manufacturer.NaturalSlug)
-	d.Set("cloud_account_count", manufacturer.CloudAccountCount)
-	d.Set("devicetype_count", manufacturer.DeviceTypeCount)
-	d.Set("inventoryitem_count", manufacturer.InventoryItemCount)
-	d.Set("platform_count", manufacturer.PlatformCount)
 
 	return nil
 }
@@ -234,11 +199,6 @@ func resourceManufacturerUpdate(ctx context.Context, d *schema.ResourceData, met
 	if d.HasChange("description") {
 		desc := d.Get("description").(string)
 		m.Description = &desc
-	}
-
-	if d.HasChange("custom_fields") {
-		fields := d.Get("custom_fields").(map[string]interface{})
-		m.CustomFields = fields
 	}
 
 	_, _, err := c.DcimAPI.DcimManufacturersPartialUpdate(auth, id).PatchedManufacturerRequest(m).Execute()

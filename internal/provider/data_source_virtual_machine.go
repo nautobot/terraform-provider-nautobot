@@ -89,11 +89,6 @@ func dataSourceVirtualMachine() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
-			"custom_fields": {
-				Description: "Custom fields associated with the virtual machine.",
-				Type:        schema.TypeMap,
-				Computed:    true,
-			},
 			"created": {
 				Description: "The creation date of the virtual machine.",
 				Type:        schema.TypeString,
@@ -162,7 +157,7 @@ func dataSourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, m
 	d.Set("comments", vm.Comments)
 	d.Set("created", createdStr)
 	d.Set("last_updated", lastUpdatedStr)
-	d.Set("custom_fields", vm.CustomFields)
+	d.Set("tags_ids", vm.Tags)
 
 	// Extract additional fields
 	if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {

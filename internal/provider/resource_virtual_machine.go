@@ -72,11 +72,13 @@ func resourceVirtualMachine() *schema.Resource {
 				Description: "Primary IPv4 address.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 			},
 			"primary_ip6_id": {
 				Description: "Primary IPv6 address.",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Computed:    true,
 			},
 			"software_version_id": {
 				Description: "Software version installed on the virtual machine.",
@@ -95,11 +97,6 @@ func resourceVirtualMachine() *schema.Resource {
 						},
 					},
 				},
-			},
-			"custom_fields": {
-				Description: "Custom fields associated with the virtual machine.",
-				Type:        schema.TypeMap,
-				Optional:    true,
 			},
 			"tags_ids": {
 				Description: "Tags associated with the virtual machine.",
@@ -267,9 +264,6 @@ func resourceVirtualMachineCreate(ctx context.Context, d *schema.ResourceData, m
 		}
 		vm.SoftwareImageFiles = files
 	}
-	if v, ok := d.GetOk("custom_fields"); ok {
-		vm.CustomFields = v.(map[string]interface{})
-	}
 	if v, ok := d.GetOk("tags_ids"); ok {
 		var tags []nb.BulkWritableCableRequestStatus
 		for _, tag := range v.([]interface{}) {
@@ -379,8 +373,6 @@ func resourceVirtualMachineRead(ctx context.Context, d *schema.ResourceData, met
 	}
 
 	d.Set("software_image_files", imageFiles)
-
-	d.Set("custom_fields", vm.CustomFields)
 
 	var tags []string
 	for _, tag := range vm.Tags {
@@ -537,10 +529,6 @@ func resourceVirtualMachineUpdate(ctx context.Context, d *schema.ResourceData, m
 			})
 		}
 		vm.SoftwareImageFiles = files
-	}
-
-	if d.HasChange("custom_fields") {
-		vm.CustomFields = d.Get("custom_fields").(map[string]interface{})
 	}
 
 	if d.HasChange("tags_ids") {

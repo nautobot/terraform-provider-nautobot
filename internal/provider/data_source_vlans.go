@@ -78,11 +78,6 @@ func dataSourceVLANs() *schema.Resource {
 								Type: schema.TypeString,
 							},
 						},
-						"custom_fields": {
-							Description: "Custom fields associated with the VLAN.",
-							Type:        schema.TypeMap,
-							Computed:    true,
-						},
 						"created": {
 							Description: "The creation date of the VLAN.",
 							Type:        schema.TypeString,
@@ -141,13 +136,12 @@ func dataSourceVLANsRead(ctx context.Context, d *schema.ResourceData, meta inter
 
 		// Prepare itemMap with mandatory fields
 		itemMap := map[string]interface{}{
-			"id":            vlan.Id,
-			"vid":           vlan.Vid,
-			"name":          vlan.Name,
-			"description":   vlan.Description,
-			"created":       createdStr,
-			"last_updated":  lastUpdatedStr,
-			"custom_fields": vlan.CustomFields,
+			"id":           vlan.Id,
+			"vid":          vlan.Vid,
+			"name":         vlan.Name,
+			"description":  vlan.Description,
+			"created":      createdStr,
+			"last_updated": lastUpdatedStr,
 		}
 
 		// Handle nullable VlanGroup

@@ -65,11 +65,6 @@ func dataSourceClusters() *schema.Resource {
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"custom_fields": {
-							Description: "Custom fields associated with the cluster.",
-							Type:        schema.TypeMap,
-							Computed:    true,
-						},
 						"created": {
 							Description: "The creation date of the cluster.",
 							Type:        schema.TypeString,
@@ -129,12 +124,11 @@ func dataSourceClustersRead(ctx context.Context, d *schema.ResourceData, meta in
 
 		// Prepare itemMap with mandatory fields
 		itemMap := map[string]interface{}{
-			"id":            cluster.Id,
-			"name":          cluster.Name,
-			"comments":      cluster.Comments,
-			"created":       createdStr,
-			"last_updated":  lastUpdatedStr,
-			"custom_fields": cluster.CustomFields,
+			"id":           cluster.Id,
+			"name":         cluster.Name,
+			"comments":     cluster.Comments,
+			"created":      createdStr,
+			"last_updated": lastUpdatedStr,
 		}
 
 		// Extract cluster_type_id safely

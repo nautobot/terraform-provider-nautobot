@@ -59,11 +59,6 @@ func dataSourceCluster() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"custom_fields": {
-				Description: "Custom fields associated with the cluster.",
-				Type:        schema.TypeMap,
-				Computed:    true,
-			},
 			"created": {
 				Description: "The creation date of the cluster.",
 				Type:        schema.TypeString,
@@ -166,9 +161,6 @@ func dataSourceClusterRead(ctx context.Context, d *schema.ResourceData, meta int
 		}
 	}
 	d.Set("tags_ids", tags)
-
-	// Handle custom fields
-	d.Set("custom_fields", cluster.CustomFields)
 
 	return diags
 }

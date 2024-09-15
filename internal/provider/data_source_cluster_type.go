@@ -46,11 +46,6 @@ func dataSourceClusterType() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"cluster_count": {
-				Description: "Count of clusters associated with the cluster type.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
 			"description": {
 				Description: "The description of the cluster type.",
 				Type:        schema.TypeString,
@@ -69,11 +64,6 @@ func dataSourceClusterType() *schema.Resource {
 			"notes_url": {
 				Description: "Notes URL for the cluster type.",
 				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"custom_fields": {
-				Description: "Custom fields for the cluster type.",
-				Type:        schema.TypeMap,
 				Computed:    true,
 			},
 		},
@@ -131,13 +121,11 @@ func dataSourceClusterTypeRead(ctx context.Context, d *schema.ResourceData, meta
 	d.Set("display", clusterType.Display)
 	d.Set("url", clusterType.Url)
 	d.Set("natural_slug", clusterType.NaturalSlug)
-	d.Set("cluster_count", clusterType.ClusterCount)
 	d.Set("name", clusterType.Name)
 	d.Set("description", clusterType.Description)
 	d.Set("created", createdStr)
 	d.Set("last_updated", lastUpdatedStr)
 	d.Set("notes_url", clusterType.NotesUrl)
-	d.Set("custom_fields", clusterType.CustomFields)
 
 	return diags
 }

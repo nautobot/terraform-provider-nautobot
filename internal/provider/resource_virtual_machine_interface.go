@@ -33,6 +33,7 @@ func resourceVMInterface() *schema.Resource {
 				Description: "Whether the interface is enabled.",
 				Type:        schema.TypeBool,
 				Optional:    true,
+				Default:     true,
 			},
 			"mtu": {
 				Description: "MTU size of the interface.",
@@ -64,12 +65,7 @@ func resourceVMInterface() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 			},
-			"custom_fields": {
-				Description: "Custom fields associated with the interface.",
-				Type:        schema.TypeMap,
-				Optional:    true,
-			},
-			"tags": {
+			"tags_ids": {
 				Description: "Tags associated with the interface.",
 				Type:        schema.TypeList,
 				Optional:    true,
@@ -223,11 +219,12 @@ func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta i
 	d.Set("enabled", vmInterface.Enabled)
 	d.Set("mtu", vmInterface.Mtu)
 	d.Set("description", vmInterface.Description)
-	d.Set("status", vmInterface.Status.Id.String)
-	d.Set("virtual_machine_id", vmInterface.VirtualMachine.Id.String)
+	d.Set("status", vmInterface.Status.Id)
+	d.Set("virtual_machine_id", vmInterface.VirtualMachine.Id)
 	d.Set("untagged_vlan_id", vmInterface.UntaggedVlan)
 	d.Set("created", vmInterface.Created)
 	d.Set("last_updated", vmInterface.LastUpdated)
+	d.Set("tags_ids", vmInterface.Tags)
 
 	// Fetch assigned IP addresses
 	assignedIPs := []string{}
@@ -235,6 +232,10 @@ func resourceVMInterfaceRead(ctx context.Context, d *schema.ResourceData, meta i
 		assignedIPs = append(assignedIPs, *ip.Id.String)
 	}
 	d.Set("ip_addresses", assignedIPs)
+
+	if vmInterface.Mode != nil {
+		d.Set("mode", vmInterface.Mode.Label)
+	}
 
 	return nil
 }

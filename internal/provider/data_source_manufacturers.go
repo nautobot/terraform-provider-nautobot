@@ -47,26 +47,6 @@ func dataSourceManufacturers() *schema.Resource {
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"cloud_account_count": {
-							Description: "Count of cloud accounts associated with the Manufacturer.",
-							Type:        schema.TypeInt,
-							Computed:    true,
-						},
-						"devicetype_count": {
-							Description: "Count of device types associated with the Manufacturer.",
-							Type:        schema.TypeInt,
-							Computed:    true,
-						},
-						"inventoryitem_count": {
-							Description: "Count of inventory items associated with the Manufacturer.",
-							Type:        schema.TypeInt,
-							Computed:    true,
-						},
-						"platform_count": {
-							Description: "Count of platforms associated with the Manufacturer.",
-							Type:        schema.TypeInt,
-							Computed:    true,
-						},
 						"name": {
 							Description: "Manufacturer's name.",
 							Type:        schema.TypeString,
@@ -92,11 +72,6 @@ func dataSourceManufacturers() *schema.Resource {
 							Type:        schema.TypeString,
 							Optional:    true,
 							Computed:    true,
-						},
-						"custom_fields": {
-							Description: "Custom fields for the Manufacturer.",
-							Type:        schema.TypeMap,
-							Optional:    true,
 						},
 					},
 				},
@@ -144,21 +119,16 @@ func dataSourceManufacturersRead(ctx context.Context, d *schema.ResourceData, me
 			lastUpdatedStr = manufacturer.LastUpdated.Get().Format(time.RFC3339)
 		}
 		itemMap := map[string]interface{}{
-			"id":                  manufacturer.Id,
-			"object_type":         manufacturer.ObjectType,
-			"display":             manufacturer.Display,
-			"url":                 manufacturer.Url,
-			"natural_slug":        manufacturer.NaturalSlug,
-			"cloud_account_count": manufacturer.CloudAccountCount,
-			"devicetype_count":    manufacturer.DeviceTypeCount,
-			"inventoryitem_count": manufacturer.InventoryItemCount,
-			"platform_count":      manufacturer.PlatformCount,
-			"name":                manufacturer.Name,
-			"description":         manufacturer.Description,
-			"created":             createdStr,
-			"last_updated":        lastUpdatedStr,
-			"notes_url":           manufacturer.NotesUrl,
-			"custom_fields":       manufacturer.CustomFields,
+			"id":           manufacturer.Id,
+			"object_type":  manufacturer.ObjectType,
+			"display":      manufacturer.Display,
+			"url":          manufacturer.Url,
+			"natural_slug": manufacturer.NaturalSlug,
+			"name":         manufacturer.Name,
+			"description":  manufacturer.Description,
+			"created":      createdStr,
+			"last_updated": lastUpdatedStr,
+			"notes_url":    manufacturer.NotesUrl,
 		}
 		list = append(list, itemMap)
 	}
