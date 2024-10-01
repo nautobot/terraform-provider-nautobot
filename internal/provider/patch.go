@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	nb "github.com/TobiPeterG/go-nautobot"
+	nb "github.com/nautobot/go-nautobot/v2"
 )
 
 func NewSecurityProviderNautobotToken(t string) (*SecurityProviderNautobotToken, error) {

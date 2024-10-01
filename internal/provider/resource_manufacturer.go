@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	nb "github.com/TobiPeterG/go-nautobot"
+	nb "github.com/nautobot/go-nautobot/v2"
 )
 
 func resourceManufacturer() *schema.Resource {

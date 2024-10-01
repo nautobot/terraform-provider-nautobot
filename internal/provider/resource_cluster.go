@@ -3,9 +3,9 @@ package provider
 import (
 	"context"
 
-	nb "github.com/TobiPeterG/go-nautobot"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	nb "github.com/nautobot/go-nautobot/v2"
 )
 
 func resourceCluster() *schema.Resource {
