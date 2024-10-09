@@ -33,6 +33,11 @@ func resourceAvailableIPAddress() *schema.Resource {
 				Type:        schema.TypeInt,
 				Computed:    true,
 			},
+			"dns_name": {
+				Description: "DNS name associated with the IP address.",
+				Type:        schema.TypeString,
+				Optional:    true,
+			},
 			"status": {
 				Description: "Status of the allocated IP address.",
 				Type:        schema.TypeString,
@@ -76,6 +81,11 @@ func resourceAvailableIPAddressCreate(ctx context.Context, d *schema.ResourceDat
 		},
 	}
 
+	if v, ok := d.GetOk("dns_name"); ok {
+		dns_name := v.(string)
+		ipRequest.DnsName = &dns_name
+	}
+
 	// Allocate the IP (this automatically chooses the first available IP from the prefix)
 	rsp, _, err := c.IpamAPI.IpamPrefixesAvailableIpsCreate(auth, prefixID).IPAllocationRequest([]nb.IPAllocationRequest{ipRequest}).Execute()
 	if err != nil {
@@ -86,6 +96,7 @@ func resourceAvailableIPAddressCreate(ctx context.Context, d *schema.ResourceDat
 	d.SetId(rsp[0].Id)
 	d.Set("address", rsp[0].Address)
 	d.Set("ip_version", rsp[0].IpVersion)
+	d.Set("dns_name", rsp[0].DnsName)
 
 	return resourceAvailableIPAddressRead(ctx, d, meta)
 }
@@ -117,6 +128,7 @@ func resourceAvailableIPAddressRead(ctx context.Context, d *schema.ResourceData,
 	// Map the retrieved data back to Terraform state
 	d.Set("address", ipAddress.Address)
 	d.Set("ip_version", ipAddress.IpVersion)
+	d.Set("dns_name", ipAddress.DnsName)
 
 	return nil
 }
@@ -153,6 +165,11 @@ func resourceAvailableIPAddressUpdate(ctx context.Context, d *schema.ResourceDat
 				String: &statusID,
 			},
 		}
+	}
+
+	if d.HasChange("dns_name") {
+		dnsName := d.Get("dns_name").(string)
+		ipAddress.DnsName = &dnsName
 	}
 
 	// Call the API to update the allocated IP address

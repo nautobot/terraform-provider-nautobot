@@ -43,9 +43,10 @@ data "nautobot_prefix" "example" {
   vlan_id = data.nautobot_vlan.example.id
 }
 
-resource "nautobot_available_ip" "example" {
+resource "nautobot_available_ip_address" "example" {
   prefix_id = data.nautobot_prefix.example.id
   status    = "Active"
+  dns_name  = "test-vm.test.com"
 }
 
 # Example virtual machine resource
@@ -60,7 +61,7 @@ resource "nautobot_virtual_machine" "new" {
 #  tenant_id          = "some-tenant-id" # Optional
 #  platform_id        = "Linux"          # Optional
 #  role_id            = "Web Server"     # Optional
-#  primary_ip4_id     = nautobot_available_ip.example.id
+#  primary_ip4_id     = nautobot_available_ip_address.example.id
 #  primary_ip6_id     = "2001:db8::100"  # Optional
 #  software_version_id = "v1.0"          # Optional
 
@@ -72,12 +73,12 @@ resource "nautobot_vm_interface" "new" {
   virtual_machine_id = nautobot_virtual_machine.new.id
   status = "Active"
   ip_addresses = [
-    nautobot_available_ip.example.id
+    nautobot_available_ip_address.example.id
   ]
 }
 
 resource "nautobot_vm_primary_ip" "new" {
   depends_on = [nautobot_vm_interface.new]
   virtual_machine_id = nautobot_virtual_machine.new.id
-  primary_ip4_id     = nautobot_available_ip.example.id
+  primary_ip4_id     = nautobot_available_ip_address.example.id
 }

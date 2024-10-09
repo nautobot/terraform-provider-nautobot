@@ -101,20 +101,20 @@ output "prefixes_id" {
   value = data.nautobot_prefixes.example.prefixes[0].id
 }
 
-data "nautobot_available_ip" "example" {
+data "nautobot_available_ip_address" "example" {
   prefix_id = data.nautobot_prefix.example.id
 }
 
 output "available_ip_address" {
-  value = data.nautobot_available_ip.example.address
+  value = data.nautobot_available_ip_address.example.address
 }
 
 output "available_ip_version" {
-  value = data.nautobot_available_ip.example.ip_version
+  value = data.nautobot_available_ip_address.example.ip_version
 }
 
 output "allocated_ip" {
-  value = nautobot_available_ip.example.address
+  value = nautobot_available_ip_address.example.address
 }
 
 
