@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	nb "github.com/nautobot/go-nautobot/pkg/nautobot"
+	nb "github.com/nautobot/go-nautobot/v2"
 )
 
 func init() {
@@ -52,11 +52,29 @@ func New(version string) func() *schema.Provider {
 				},
 			},
 			DataSourcesMap: map[string]*schema.Resource{
-				"nautobot_manufacturers": dataSourceManufacturers(),
-				"nautobot_graphql":       dataSourceGraphQL(),
+				"nautobot_available_ip_address": dataSourceAvailableIP(),
+				"nautobot_cluster":              dataSourceCluster(),
+				"nautobot_clusters":             dataSourceClusters(),
+				"nautobot_cluster_type":         dataSourceClusterType(),
+				"nautobot_cluster_types":        dataSourceClusterTypes(),
+				"nautobot_manufacturer":         dataSourceManufacturer(),
+				"nautobot_manufacturers":        dataSourceManufacturers(),
+				"nautobot_graphql":              dataSourceGraphQL(),
+				"nautobot_prefix":               dataSourcePrefix(),
+				"nautobot_prefixes":             dataSourcePrefixes(),
+				"nautobot_virtual_machine":      dataSourceVirtualMachine(),
+				"nautobot_virtual_machines":     dataSourceVirtualMachines(),
+				"nautobot_vlan":                 dataSourceVLAN(),
+				"nautobot_vlans":                dataSourceVLANs(),
 			},
 			ResourcesMap: map[string]*schema.Resource{
-				"nautobot_manufacturer": resourceManufacturer(),
+				"nautobot_available_ip_address": resourceAvailableIPAddress(),
+				"nautobot_cluster":              resourceCluster(),
+				"nautobot_cluster_type":         resourceClusterType(),
+				"nautobot_manufacturer":         resourceManufacturer(),
+				"nautobot_virtual_machine":      resourceVirtualMachine(),
+				"nautobot_vm_interface":         resourceVMInterface(),
+				"nautobot_vm_primary_ip":        resourcePrimaryIPAddressForVM(),
 			},
 		}
 
@@ -70,10 +88,9 @@ func New(version string) func() *schema.Provider {
 // you would need to setup to communicate with the upstream
 // API.
 type apiClient struct {
-	Client     *nb.ClientWithResponses
-	Server     string
-	Token      *SecurityProviderNautobotToken
-	BaseClient *nb.Client
+	Client *nb.APIClient
+	Server string
+	Token  *SecurityProviderNautobotToken
 }
 
 func configure(
@@ -82,6 +99,8 @@ func configure(
 ) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	return func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
 		serverURL := d.Get("url").(string)
+		config := nb.NewConfiguration()
+		config.Servers[0].URL = serverURL
 		_, hasToken := d.GetOk("token")
 
 		var diags diag.Diagnostics = nil
@@ -96,30 +115,12 @@ func configure(
 			d.Get("token").(string),
 		)
 
-		c, err := nb.NewClientWithResponses(
-			serverURL,
-			nb.WithRequestEditorFn(token.Intercept),
-		)
-		if err != nil {
-			diags = diag.FromErr(err)
-			diags[0].Severity = diag.Error
-			return &apiClient{Server: serverURL}, diags
-		}
-		bc, err := nb.NewClient(
-			serverURL,
-			nb.WithRequestEditorFn(token.Intercept),
-		)
-		if err != nil {
-			diags = diag.FromErr(err)
-			diags[0].Severity = diag.Error
-			return &apiClient{Server: serverURL}, diags
-		}
+		c := nb.NewAPIClient(config)
 
 		return &apiClient{
-			Client:     c,
-			Server:     serverURL,
-			Token:      token,
-			BaseClient: bc,
+			Client: c,
+			Server: serverURL,
+			Token:  token,
 		}, diags
 	}
 }

@@ -44,8 +44,8 @@ type reqBody struct {
 func dataSourceGraphQLRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	c := meta.(*apiClient).BaseClient
-	s := fmt.Sprintf("%sgraphql/", meta.(*apiClient).Server)
+	c := meta.(*apiClient).Client
+	s := fmt.Sprintf("%s/graphql/", meta.(*apiClient).Server)
 	t := meta.(*apiClient).Token
 	query := d.Get("query").(string)
 
@@ -58,7 +58,7 @@ func dataSourceGraphQLRead(ctx context.Context, d *schema.ResourceData, meta int
 	// Add the authorization header to our request.
 	t.Intercept(ctx, req)
 
-	rsp, err := c.Client.Do(req)
+	rsp, err := c.GetConfig().HTTPClient.Do(req)
 	if err != nil {
 		return diag.Errorf("failed to successfully call %s: %s", s, err.Error())
 	}

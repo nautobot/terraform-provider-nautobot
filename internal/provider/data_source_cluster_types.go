@@ -10,67 +10,66 @@ import (
 	nb "github.com/nautobot/go-nautobot/v2"
 )
 
-func dataSourceManufacturers() *schema.Resource {
+func dataSourceClusterTypes() *schema.Resource {
 	return &schema.Resource{
-		Description: "Manufacturer data source in the Terraform provider Nautobot.",
+		Description: "Retrieves information about cluster types in Nautobot.",
 
-		ReadContext: dataSourceManufacturersRead,
+		ReadContext: dataSourceClusterTypesRead,
 
 		Schema: map[string]*schema.Schema{
-			"manufacturers": {
+			"cluster_types": {
 				Type:     schema.TypeList,
 				Computed: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"id": {
-							Description: "Manufacturer's UUID.",
+							Description: "The UUID of the cluster type.",
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
 						"object_type": {
-							Description: "Object type of the Manufacturer.",
+							Description: "Object type of the cluster type.",
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
 						"display": {
-							Description: "Human friendly display value for the Manufacturer.",
+							Description: "Human-friendly display value for the cluster type.",
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
 						"url": {
-							Description: "URL of the Manufacturer.",
+							Description: "URL of the cluster type.",
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
 						"natural_slug": {
-							Description: "Natural slug for the Manufacturer.",
+							Description: "Natural slug for the cluster type.",
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
 						"name": {
-							Description: "Manufacturer's name.",
+							Description: "The name of the cluster type.",
 							Type:        schema.TypeString,
 							Required:    true,
 						},
 						"description": {
-							Description: "Manufacturer's description.",
+							Description: "The description of the cluster type.",
 							Type:        schema.TypeString,
 							Optional:    true,
 						},
 						"created": {
-							Description: "Manufacturer's creation date.",
+							Description: "The date the cluster type was created.",
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
 						"last_updated": {
-							Description: "Manufacturer's last update.",
+							Description: "The date the cluster type was last updated.",
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
 						"notes_url": {
-							Description: "Notes URL for the Manufacturer.",
+							Description: "Notes URL for the cluster type.",
 							Type:        schema.TypeString,
-							Optional:    true,
 							Computed:    true,
 						},
 					},
@@ -80,13 +79,14 @@ func dataSourceManufacturers() *schema.Resource {
 	}
 }
 
-// Use this as reference: https://learn.hashicorp.com/tutorials/terraform/provider-setup?in=terraform/providers#implement-read
-func dataSourceManufacturersRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+func dataSourceClusterTypesRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	c := meta.(*apiClient).Client
 	s := meta.(*apiClient).Server
 	t := meta.(*apiClient).Token.token
+
+	// Auth context
 	auth := context.WithValue(
 		ctx,
 		nb.ContextAPIKeys,
@@ -98,46 +98,46 @@ func dataSourceManufacturersRead(ctx context.Context, d *schema.ResourceData, me
 		},
 	)
 
-	rsp, _, err := c.DcimAPI.DcimManufacturersList(auth).Execute()
+	rsp, _, err := c.VirtualizationAPI.VirtualizationClusterTypesList(auth).Execute()
 	if err != nil {
-		return diag.Errorf("failed to get manufacturers list from %s: %s", s, err.Error())
+		return diag.Errorf("failed to get cluster types list from %s: %s", s, err.Error())
 	}
 
 	results := rsp.Results
-
 	list := make([]map[string]interface{}, 0)
 
-	// Iterate over the results and map each manufacturer to the format expected by Terraform
-	for _, manufacturer := range results {
+	// Iterate over the results and map each cluster type to the format expected by Terraform
+	for _, clusterType := range results {
 		createdStr := ""
-		if manufacturer.Created.IsSet() && manufacturer.Created.Get() != nil {
-			createdStr = manufacturer.Created.Get().Format(time.RFC3339)
+		if clusterType.Created.IsSet() && clusterType.Created.Get() != nil {
+			createdStr = clusterType.Created.Get().Format(time.RFC3339)
 		}
 
 		lastUpdatedStr := ""
-		if manufacturer.LastUpdated.IsSet() && manufacturer.LastUpdated.Get() != nil {
-			lastUpdatedStr = manufacturer.LastUpdated.Get().Format(time.RFC3339)
+		if clusterType.LastUpdated.IsSet() && clusterType.LastUpdated.Get() != nil {
+			lastUpdatedStr = clusterType.LastUpdated.Get().Format(time.RFC3339)
 		}
+
 		itemMap := map[string]interface{}{
-			"id":           manufacturer.Id,
-			"object_type":  manufacturer.ObjectType,
-			"display":      manufacturer.Display,
-			"url":          manufacturer.Url,
-			"natural_slug": manufacturer.NaturalSlug,
-			"name":         manufacturer.Name,
-			"description":  manufacturer.Description,
+			"id":           clusterType.Id,
+			"object_type":  clusterType.ObjectType,
+			"display":      clusterType.Display,
+			"url":          clusterType.Url,
+			"natural_slug": clusterType.NaturalSlug,
+			"name":         clusterType.Name,
+			"description":  clusterType.Description,
 			"created":      createdStr,
 			"last_updated": lastUpdatedStr,
-			"notes_url":    manufacturer.NotesUrl,
+			"notes_url":    clusterType.NotesUrl,
 		}
 		list = append(list, itemMap)
 	}
 
-	if err := d.Set("manufacturers", list); err != nil {
+	if err := d.Set("cluster_types", list); err != nil {
 		return diag.FromErr(err)
 	}
 
-	// always run
+	// Always run
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 
 	return diags

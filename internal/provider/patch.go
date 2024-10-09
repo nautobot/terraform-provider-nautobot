@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
-	"github.com/deepmap/oapi-codegen/pkg/types"
-	nb "github.com/nautobot/go-nautobot/pkg/nautobot"
+	nb "github.com/nautobot/go-nautobot/v2"
 )
 
 func NewSecurityProviderNautobotToken(t string) (*SecurityProviderNautobotToken, error) {
@@ -25,62 +23,61 @@ func (s *SecurityProviderNautobotToken) Intercept(ctx context.Context, req *http
 	return nil
 }
 
-// PaginatedSiteList defines model for PaginatedSiteList.
-type PaginatedSiteList struct {
-	Count    *int    `json:"count,omitempty"`
-	Next     *string `json:"next"`
-	Previous *string `json:"previous"`
-	Results  *[]Site `json:"results,omitempty"`
+func stringPtr(s string) *string {
+	return &s
 }
 
-// Mixin to add `status` choice field to model serializers.
-type Site struct {
-	// 32-bit autonomous system number
-	Asn          *int64                `json:"asn"`
-	CircuitCount *int                  `json:"circuit_count,omitempty"`
-	Comments     *string               `json:"comments,omitempty"`
-	ContactEmail *string               `json:"contact_email,omitempty"`
-	ContactName  *string               `json:"contact_name,omitempty"`
-	ContactPhone *string               `json:"contact_phone,omitempty"`
-	Created      *types.Date           `json:"created,omitempty"`
-	CustomFields *nb.CustomFieldChoice `json:"custom_fields,omitempty"`
-	Description  *string               `json:"description,omitempty"`
-	DeviceCount  *int                  `json:"device_count,omitempty"`
+func int32Ptr(i int) *int32 {
+	val := int32(i)
+	return &val
+}
 
-	// Human friendly display value
-	Display *string `json:"display,omitempty"`
+func getStatusName(ctx context.Context, c *nb.APIClient, token string, statusID string) (string, error) {
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    token,
+				Prefix: "Token",
+			},
+		},
+	)
 
-	// Local facility ID or description
-	Facility    *string     `json:"facility,omitempty"`
-	Id          *types.UUID `json:"id,omitempty"`
-	LastUpdated *time.Time  `json:"last_updated,omitempty"`
+	// Fetch the status using the status ID
+	status, _, err := c.ExtrasAPI.ExtrasStatusesRetrieve(auth, statusID).Execute()
+	if err != nil {
+		return "", err
+	}
 
-	// GPS coordinate (latitude)
-	Latitude *string `json:"latitude"`
+	// No need to dereference, just check if the string is empty
+	if status.Name != "" {
+		return status.Name, nil
+	}
 
-	// GPS coordinate (longitude)
-	Longitude       *string `json:"longitude"`
-	Name            string  `json:"name"`
-	PhysicalAddress *string `json:"physical_address,omitempty"`
-	PrefixCount     *int    `json:"prefix_count,omitempty"`
-	RackCount       *int    `json:"rack_count,omitempty"`
-	Region          *struct {
-		// Embedded struct due to allOf(#/components/schemas/NestedRegion)
-		nb.NestedRegion `yaml:",inline"`
-	} `json:"region"`
-	ShippingAddress *string `json:"shipping_address,omitempty"`
-	Slug            *string `json:"slug,omitempty"`
-	Status          struct {
-		Label *nb.SiteStatusLabel `json:"label,omitempty"`
-		Value *nb.SiteStatusValue `json:"value,omitempty"`
-	} `json:"status"`
-	Tags   *[]nb.TagSerializerField `json:"tags,omitempty"`
-	Tenant *struct {
-		// Embedded struct due to allOf(#/components/schemas/NestedTenant)
-		nb.NestedTenant `yaml:",inline"`
-	} `json:"tenant"`
-	TimeZone            *string `json:"time_zone"`
-	Url                 *string `json:"url,omitempty"`
-	VirtualmachineCount *int    `json:"virtualmachine_count,omitempty"`
-	VlanCount           *int    `json:"vlan_count,omitempty"`
+	return "", fmt.Errorf("status name not found for ID %s", statusID)
+}
+
+func getStatusID(ctx context.Context, c *nb.APIClient, token string, statusName string) (string, error) {
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    token,
+				Prefix: "Token",
+			},
+		},
+	)
+
+	statuses, _, err := c.ExtrasAPI.ExtrasStatusesList(auth).Name([]string{statusName}).Execute()
+	if err != nil {
+		return "", err
+	}
+
+	if len(statuses.Results) == 0 {
+		return "", fmt.Errorf("status %s not found", statusName)
+	}
+
+	return statuses.Results[0].Id, nil
 }

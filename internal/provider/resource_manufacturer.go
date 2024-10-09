@@ -2,17 +2,13 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
+	"time"
 
-	"github.com/deepmap/oapi-codegen/pkg/types"
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/tidwall/gjson"
 
-	nb "github.com/nautobot/go-nautobot/pkg/nautobot"
+	nb "github.com/nautobot/go-nautobot/v2"
 )
 
 func resourceManufacturer() *schema.Resource {
@@ -35,20 +31,9 @@ func resourceManufacturer() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 			},
-			"custom_fields": {
-				Description: "Manufacturer custom fields.",
-				Type:        schema.TypeMap,
-				Optional:    true,
-			},
-			"devicetype_count": {
-				Description: "Manufacturer's device count.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
 			"display": {
 				Description: "Manufacturer's display name.",
 				Type:        schema.TypeString,
-				Optional:    true,
 				Computed:    true,
 			},
 			"id": {
@@ -56,13 +41,8 @@ func resourceManufacturer() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"inventoryitem_count": {
-				Description: "Manufacturer's inventory item count.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
 			"last_updated": {
-				Description: "Manufacturer's last update.",
+				Description: "Manufacturer's last update date.",
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
@@ -72,26 +52,23 @@ func resourceManufacturer() *schema.Resource {
 				Required:    true,
 			},
 			"notes_url": {
-				Description: "Notes for manufacturer.",
+				Description: "Notes URL for the manufacturer.",
 				Type:        schema.TypeString,
-				Optional:    true,
-				Computed:    true,
-			},
-			"platform_count": {
-				Description: "Manufacturer's platform count.",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
-			"slug": {
-				Description: "Manufacturer's slug.",
-				Type:        schema.TypeString,
-				Optional:    true,
 				Computed:    true,
 			},
 			"url": {
 				Description: "Manufacturer's URL.",
 				Type:        schema.TypeString,
-				Optional:    true,
+				Computed:    true,
+			},
+			"object_type": {
+				Description: "Object type of the manufacturer.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
+			"natural_slug": {
+				Description: "Natural slug for the manufacturer.",
+				Type:        schema.TypeString,
 				Computed:    true,
 			},
 		},
@@ -101,175 +78,136 @@ func resourceManufacturer() *schema.Resource {
 func resourceManufacturerCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	c := meta.(*apiClient).Client
 	s := meta.(*apiClient).Server
+	t := meta.(*apiClient).Token.token
 
-	var m nb.ManufacturerRequest
-
-	name, ok := d.GetOk("name")
-	n := name.(string)
-	if ok {
-		m.Name = n
-	}
-
-	m.Description = &n
-	description, ok := d.GetOk("description")
-	if ok {
-		t := description.(string)
-		m.Description = &t
-	}
-
-	sl := strings.ReplaceAll(strings.ToLower(n), " ", "-")
-	m.Slug = &sl
-	slug, ok := d.GetOk("slug")
-	if ok {
-		t := slug.(string)
-		m.Slug = &t
-	}
-
-	rsp, err := c.DcimManufacturersCreateWithResponse(
+	auth := context.WithValue(
 		ctx,
-		nb.DcimManufacturersCreateJSONRequestBody(m))
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    t,
+				Prefix: "Token",
+			},
+		},
+	)
+
+	// Check if a manufacturer with the same name already exists
+	name := d.Get("name").(string)
+
+	existingManufacturersResp, _, err := c.DcimAPI.DcimManufacturersList(auth).Execute()
 	if err != nil {
-		return diag.Errorf("failed to create manufacturer %s on %s: %s", name.(string), s, err.Error())
+		return diag.Errorf("failed to check existing manufacturers on %s : %s", s, err.Error())
 	}
-	data := string(rsp.Body)
 
-	dataName := gjson.Get(data, "name.0")
-
-	if dataName.String() == "manufacturer with this name already exists." {
-		rsp, err := c.DcimManufacturersListWithResponse(
-			ctx,
-			&nb.DcimManufacturersListParams{
-				NameIe: &[]string{n},
-			})
-
-		if err != nil {
-			return diag.Errorf("failed to get manufacturer %s from %s: %s", n, s, err.Error())
+	// Search through the results for a manufacturer with the given name
+	for _, manufacturer := range existingManufacturersResp.Results {
+		if manufacturer.Name == name {
+			// Manufacturer already exists, set the ID and exit
+			d.SetId(manufacturer.Id)
+			return resourceManufacturerRead(ctx, d, meta)
 		}
-		id := gjson.Get(string(rsp.Body), "results.0.id")
+	}
 
-		d.SetId(id.String())
+	// Create a new manufacturer
+	var m nb.ManufacturerRequest
+	m.Name = name
 
-		return resourceManufacturerRead(ctx, d, meta)
+	if v, ok := d.GetOk("description"); ok {
+		desc := v.(string)
+		m.Description = &desc
+	}
+	rsp, _, err := c.DcimAPI.DcimManufacturersCreate(auth).ManufacturerRequest(m).Execute()
+	if err != nil {
+		return diag.Errorf("failed to create manufacturer %s on %s: %s", m.Name, s, err.Error())
 	}
 
 	tflog.Trace(ctx, "manufacturer created", map[string]interface{}{
-		"name": name.(string),
-		"data": []interface{}{description, slug},
+		"name": m.Name,
 	})
 
-	id := gjson.Get(data, "id")
-
-	d.SetId(id.String())
+	d.SetId(rsp.Id)
 
 	return resourceManufacturerRead(ctx, d, meta)
 }
 
 func resourceManufacturerRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	c := meta.(*apiClient).Client
+	t := meta.(*apiClient).Token.token
 	id := d.Get("id").(string)
-	rsp, err := c.DcimManufacturersListWithResponse(
+
+	auth := context.WithValue(
 		ctx,
-		&nb.DcimManufacturersListParams{
-			IdIe: &[]types.UUID{uuid.MustParse(id)},
-		})
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    t,
+				Prefix: "Token",
+			},
+		},
+	)
 
-	var diags diag.Diagnostics
-	name := d.Get("name").(string)
-	s := meta.(*apiClient).Server
+	// Fetch manufacturer by ID
+	manufacturer, _, err := c.DcimAPI.DcimManufacturersRetrieve(auth, id).Execute()
 	if err != nil {
-		return diag.Errorf("failed to get manufacturer %s from %s: %s", name, s, err.Error())
+		return diag.Errorf("failed to get manufacturer %s: %s", id, err.Error())
 	}
 
-	// If the Manufacturer is in the state file, but it is not in the Nautobot platform
-	// the response we get from DcimManufacturersListWithResponse is: {"count":0,"next":null,"previous":null,"results":[]}
-	// When you create something in Terraform but delete it manually, Terraform should gracefully handle it.
-	// We should set the ID to an empty string so Terraform "destroys" the resource in state.
-	count := gjson.Get(string(rsp.Body), "count")
-	if count.String() == "0" {
-		d.SetId("")
-		return diags
+	// Set the Terraform state from the retrieved manufacturer data
+	d.Set("name", manufacturer.Name)
+	if manufacturer.Created.IsSet() && manufacturer.Created.Get() != nil {
+		d.Set("created", manufacturer.Created.Get().Format(time.RFC3339))
 	}
-
-	results := gjson.Get(string(rsp.Body), "results.0")
-
-	resultsReader := strings.NewReader(results.String())
-
-	item := make(map[string]interface{})
-
-	err = json.NewDecoder(resultsReader).Decode(&item)
-	if err != nil {
-		return diag.Errorf("failed to decode manufacturer %s from %s: %s", name, s, err.Error())
+	if manufacturer.LastUpdated.IsSet() && manufacturer.LastUpdated.Get() != nil {
+		d.Set("last_updated", manufacturer.LastUpdated.Get().Format(time.RFC3339))
 	}
+	d.Set("description", manufacturer.Description)
+	d.Set("display", manufacturer.Display)
+	d.Set("id", manufacturer.Id)
+	d.Set("notes_url", manufacturer.NotesUrl)
+	d.Set("url", manufacturer.Url)
+	d.Set("object_type", manufacturer.ObjectType)
+	d.Set("natural_slug", manufacturer.NaturalSlug)
 
-	d.Set("name", item["name"].(string))
-	d.Set("created", item["created"].(string))
-	d.Set("description", item["description"].(string))
-	d.Set("display", item["display"].(string))
-	d.Set("id", item["id"].(string))
-	d.Set("notes_url", item["notes_url"].(string))
-	d.Set("slug", item["slug"].(string))
-	d.Set("url", item["url"].(string))
-	d.Set("last_updated", item["last_updated"].(string))
-
-	switch v := item["devicetype_count"].(type) {
-	case int:
-		d.Set("devicetype_count", v)
-	case float64:
-		d.Set("devicetype_count", int(v))
-	default:
-	}
-	switch v := item["inventoryitem_count"].(type) {
-	case int:
-		d.Set("inventoryitem_count", v)
-	case float64:
-		d.Set("inventoryitem_count", int(v))
-	default:
-	}
-	switch v := item["platform_count"].(type) {
-	case int:
-		d.Set("platform_count", v)
-	case float64:
-		d.Set("platform_count", int(v))
-	default:
-	}
-
-	return diags
+	return nil
 }
 
 func resourceManufacturerUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	c := meta.(*apiClient).Client
 	s := meta.(*apiClient).Server
+	t := meta.(*apiClient).Token.token
 
-	name := d.Get("name").(string)
 	id := d.Get("id").(string)
 
 	var m nb.PatchedManufacturerRequest
 
+	auth := context.WithValue(
+		ctx,
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    t,
+				Prefix: "Token",
+			},
+		},
+	)
+
 	if d.HasChange("name") {
+		name := d.Get("name").(string)
 		m.Name = &name
 	}
 
-	desc := d.Get("description").(string)
 	if d.HasChange("description") {
+		desc := d.Get("description").(string)
 		m.Description = &desc
 	}
 
-	slug := d.Get("slug").(string)
-	if d.HasChange("slug") {
-		m.Description = &slug
-	}
-
-	_, err := c.DcimManufacturersPartialUpdateWithResponse(
-		ctx,
-		uuid.MustParse(id),
-		nb.DcimManufacturersPartialUpdateJSONRequestBody(m))
+	_, _, err := c.DcimAPI.DcimManufacturersPartialUpdate(auth, id).PatchedManufacturerRequest(m).Execute()
 	if err != nil {
-		return diag.Errorf("failed to update manufacturer %s on %s: %s", name, s, err.Error())
+		return diag.Errorf("failed to update manufacturer %s on %s: %s", id, s, err.Error())
 	}
 
 	tflog.Trace(ctx, "manufacturer updated", map[string]interface{}{
-		"name": name,
-		"data": []string{desc, slug},
+		"id": id,
 	})
 
 	return resourceManufacturerRead(ctx, d, meta)
@@ -280,15 +218,24 @@ func resourceManufacturerDelete(ctx context.Context, d *schema.ResourceData, met
 
 	c := meta.(*apiClient).Client
 	s := meta.(*apiClient).Server
+	t := meta.(*apiClient).Token.token
 
 	id := d.Get("id").(string)
-	name := d.Get("name").(string)
 
-	_, err := c.DcimManufacturersDestroy(
+	auth := context.WithValue(
 		ctx,
-		uuid.MustParse(id))
+		nb.ContextAPIKeys,
+		map[string]nb.APIKey{
+			"tokenAuth": {
+				Key:    t,
+				Prefix: "Token",
+			},
+		},
+	)
+
+	_, err := c.DcimAPI.DcimManufacturersDestroy(auth, id).Execute()
 	if err != nil {
-		return diag.Errorf("failed to delete manufacturer %s on %s: %s", name, s, err.Error())
+		return diag.Errorf("failed to delete manufacturer %s on %s: %s", id, s, err.Error())
 	}
 
 	// d.SetId("") is automatically called assuming delete returns no errors, but

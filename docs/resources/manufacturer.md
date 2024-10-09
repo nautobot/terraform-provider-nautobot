@@ -21,20 +21,17 @@ This object manages a manufacturer in Nautobot
 
 ### Optional
 
-- `custom_fields` (Map of String) Manufacturer custom fields.
 - `description` (String) Manufacturer's description.
-- `display` (String) Manufacturer's display name.
-- `notes_url` (String) Notes for manufacturer.
-- `slug` (String) Manufacturer's slug.
-- `url` (String) Manufacturer's URL.
 
 ### Read-Only
 
 - `created` (String) Manufacturer's creation date.
-- `devicetype_count` (Number) Manufacturer's device count.
+- `display` (String) Manufacturer's display name.
 - `id` (String) Manufacturer's UUID.
-- `inventoryitem_count` (Number) Manufacturer's inventory item count.
-- `last_updated` (String) Manufacturer's last update.
-- `platform_count` (Number) Manufacturer's platform count.
+- `last_updated` (String) Manufacturer's last update date.
+- `natural_slug` (String) Natural slug for the manufacturer.
+- `notes_url` (String) Notes URL for the manufacturer.
+- `object_type` (String) Object type of the manufacturer.
+- `url` (String) Manufacturer's URL.
 
 
