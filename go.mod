@@ -1,6 +1,6 @@
 module github.com/nautobot/terraform-provider-nautobot
 
-go 1.23
+go 1.23.7
 
 require (
 	github.com/hashicorp/terraform-plugin-docs v0.13.0

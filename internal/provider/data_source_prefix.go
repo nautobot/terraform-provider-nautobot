@@ -11,20 +11,22 @@ import (
 
 func dataSourcePrefix() *schema.Resource {
 	return &schema.Resource{
-		Description: "Retrieves information about a Prefix in Nautobot by its associated VLAN ID.",
+		Description: "Retrieves information about a Prefix in Nautobot by either its ID or associated VLAN ID.",
 
 		ReadContext: dataSourcePrefixRead,
 
 		Schema: map[string]*schema.Schema{
-			"vlan_id": {
-				Description: "The UUID of the VLAN to retrieve the prefix for.",
-				Type:        schema.TypeString,
-				Required:    true,
-			},
 			"id": {
-				Description: "The UUID of the prefix.",
-				Type:        schema.TypeString,
-				Computed:    true,
+				Description:   "The UUID of the prefix.",
+				Type:          schema.TypeString,
+				Optional:      true,
+				ConflictsWith: []string{"vlan_id"},
+			},
+			"vlan_id": {
+				Description:   "The UUID of the VLAN to retrieve the prefix for.",
+				Type:          schema.TypeString,
+				Optional:      true,
+				ConflictsWith: []string{"id"},
 			},
 			"prefix": {
 				Description: "The prefix.",
@@ -38,6 +40,11 @@ func dataSourcePrefix() *schema.Resource {
 			},
 			"status": {
 				Description: "The status of the prefix.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
+			"parent_id": {
+				Description: "The ID of the parent of this prefix.",
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
@@ -81,13 +88,14 @@ func dataSourcePrefixRead(ctx context.Context, d *schema.ResourceData, meta inte
 	c := meta.(*apiClient).Client
 	t := meta.(*apiClient).Token.token
 
-	// Get the VLAN ID from the Terraform configuration
-	vlanID := d.Get("vlan_id").(string)
+	// Determine whether to use 'id' or 'vlan_id' for retrieval
+	id, idSet := d.GetOk("id")
+	vlanID, vlanIDSet := d.GetOk("vlan_id")
 
-	// Prepare the VLAN ID as a []*string slice
-	vlanIDList := []*string{&vlanID}
+	if !idSet && !vlanIDSet {
+		return diag.Errorf("either 'id' or 'vlan_id' must be provided")
+	}
 
-	// Auth context
 	auth := context.WithValue(
 		ctx,
 		nb.ContextAPIKeys,
@@ -99,17 +107,35 @@ func dataSourcePrefixRead(ctx context.Context, d *schema.ResourceData, meta inte
 		},
 	)
 
-	// Fetch prefixes by VLAN ID
-	rsp, _, err := c.IpamAPI.IpamPrefixesList(auth).VlanId(vlanIDList).Execute()
-	if err != nil {
-		return diag.Errorf("failed to get prefix for VLAN ID %s: %s", vlanID, err.Error())
+	var prefix *nb.Prefix
+
+	if idSet {
+		// Fetch prefix by ID
+		rsp, _, err := c.IpamAPI.IpamPrefixesRetrieve(auth, id.(string)).Execute()
+		if err != nil {
+			return diag.Errorf("failed to get prefix with ID %s: %s", id.(string), err.Error())
+		}
+		prefix = rsp
+	} else {
+		// Fetch prefix by VLAN ID
+		vlanIDStr := vlanID.(string)
+		vlanIDList := []*string{&vlanIDStr}
+
+		rsp, _, err := c.IpamAPI.IpamPrefixesList(auth).VlanId(vlanIDList).Execute()
+		if err != nil {
+			return diag.Errorf("failed to get prefix for VLAN ID %s: %s", vlanIDStr, err.Error())
+		}
+
+		if len(rsp.Results) == 0 {
+			return diag.Errorf("no prefix found for VLAN ID %s", vlanIDStr)
+		}
+
+		prefix = &rsp.Results[0]
 	}
 
-	if len(rsp.Results) == 0 {
-		return diag.Errorf("no prefix found for VLAN ID %s", vlanID)
+	if prefix == nil {
+		return diag.Errorf("prefix not found")
 	}
-
-	prefix := rsp.Results[0]
 
 	d.SetId(prefix.Id)
 
@@ -138,6 +164,12 @@ func dataSourcePrefixRead(ctx context.Context, d *schema.ResourceData, meta inte
 			return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
 		}
 		d.Set("status", statusName)
+	}
+
+	if prefix.Parent.IsSet() {
+		if parent := prefix.Parent.Get(); parent != nil && parent.Id != nil && parent.Id.String != nil {
+			d.Set("parent_id", *parent.Id.String)
+		}
 	}
 
 	// Handle nullable Tenant

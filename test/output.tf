@@ -86,6 +86,10 @@ output "prefix_details" {
   value = data.nautobot_prefix.example
 }
 
+output "prefix_parent_details" {
+  value = data.nautobot_prefix.example_parent
+}
+
 output "prefix_id" {
   value = data.nautobot_prefix.example.id
 }
@@ -176,13 +180,13 @@ output "vlan_id" {
   value = data.nautobot_vlan.example.id
 }
 
-data "nautobot_vlans" "example" {
-}
+#data "nautobot_vlans" "example" {
+#}
 
-output "vlans_details" {
-  value = data.nautobot_vlans.example.vlans[0]
-}
+#output "vlans_details" {
+#  value = data.nautobot_vlans.example.vlans[0]
+#}
 
-output "vlans_id" {
-  value = data.nautobot_vlans.example.vlans[0].id
-}
+#output "vlans_id" {
+#  value = data.nautobot_vlans.example.vlans[0].id
+#}

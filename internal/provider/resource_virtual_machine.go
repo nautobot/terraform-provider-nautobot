@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"io"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -138,12 +139,13 @@ func resourceVirtualMachineCreate(ctx context.Context, d *schema.ResourceData, m
 
 	// Check if the VM with the same name exists
 	vmName := d.Get("name").(string)
-	existingVMs, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesList(auth).Name([]string{vmName}).Execute()
+	vmCluster := d.Get("cluster_id").(string)
+	existingVMs, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesList(auth).Name([]string{vmName}).Cluster([]string{vmCluster}).Execute()
 	if err != nil {
 		return diag.Errorf("failed to list virtual machines: %s", err.Error())
 	}
 
-	// If a VM with the same name exists, use its ID and skip creation
+	// If a VM with the same name in this cluster exists, use its ID and skip creation
 	if len(existingVMs.Results) > 0 {
 		d.SetId(existingVMs.Results[0].Id)
 		return resourceVirtualMachineRead(ctx, d, meta)
@@ -277,9 +279,20 @@ func resourceVirtualMachineCreate(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	// Create the virtual machine
-	rsp, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesCreate(auth).VirtualMachineRequest(vm).Execute()
+	rsp, httpResp, err := c.VirtualizationAPI.VirtualizationVirtualMachinesCreate(auth).VirtualMachineRequest(vm).Execute()
 	if err != nil {
-		return diag.Errorf("failed to create virtual machine: %s", err.Error())
+		var extraInfo string
+
+		if httpResp != nil && httpResp.Body != nil {
+			bodyBytes, readErr := io.ReadAll(httpResp.Body)
+			if readErr == nil {
+				extraInfo = string(bodyBytes)
+			} else {
+				extraInfo = "unable to read response body"
+			}
+		}
+
+		return diag.Errorf("failed to create virtual machine: %s\nDetails: %s", err.Error(), extraInfo)
 	}
 
 	// Set resource ID

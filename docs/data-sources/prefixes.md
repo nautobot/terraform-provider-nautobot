@@ -30,10 +30,12 @@ Read-Only:
 - `id` (String)
 - `last_updated` (String)
 - `namespace_id` (String)
+- `parent_id` (String)
 - `prefix` (String)
 - `rir_id` (String)
 - `role_id` (String)
 - `status` (String)
 - `tenant_id` (String)
+- `vlan_id` (String)
 
 

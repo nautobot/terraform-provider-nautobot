@@ -34,13 +34,38 @@ resource "nautobot_cluster" "new" {
 #  tags_id            = ["tag1", "tag2"]
 }
 
+
+resource "nautobot_cluster_type" "new2" {
+  name        = "Example Cluster Type 2"
+  description = "This is a cluster type created via Terraform"
+}
+
+resource "nautobot_cluster" "new2" {
+  name            = "My New Cluster 2"
+  comments        = "This cluster was created using Terraform."
+  cluster_type_id = nautobot_cluster_type.new2.id
+
+  # Optionally add cluster group, tenant, location, etc.
+#  cluster_group_id   = "your-cluster-group-id"
+#  tenant_id          = data.nautobot_tenant.example.id  # Referencing tenant data source
+#  location_id        = "your-location-id"
+#  tags_id            = ["tag1", "tag2"]
+}
+
+
+
 data "nautobot_vlan" "example" {
-  name = "pek02-106-mgmt"
+  name = "VOICE - wna01-asw-04"
 }
 
 data "nautobot_prefix" "example" {
   depends_on = [data.nautobot_vlan.example]
   vlan_id = data.nautobot_vlan.example.id
+}
+
+data "nautobot_prefix" "example_parent" {
+  depends_on = [data.nautobot_prefix.example]
+  id = data.nautobot_prefix.example.parent_id
 }
 
 resource "nautobot_available_ip_address" "example" {
@@ -71,6 +96,33 @@ resource "nautobot_virtual_machine" "new" {
 resource "nautobot_vm_interface" "new" {
   name = "eth0"
   virtual_machine_id = nautobot_virtual_machine.new.id
+  status = "Active"
+  ip_addresses = [
+    nautobot_available_ip_address.example.id
+  ]
+}
+
+resource "nautobot_virtual_machine" "new2" {
+  name            = "Example VM"
+  cluster_id      = nautobot_cluster.new2.id
+  status          = "Active"
+  vcpus           = 4
+  memory          = 8192 # Memory in MB (8GB)
+  disk            = 100  # Disk size in GB
+  comments        = "This virtual machine was created using Terraform."
+#  tenant_id          = "some-tenant-id" # Optional
+#  platform_id        = "Linux"          # Optional
+#  role_id            = "Web Server"     # Optional
+#  primary_ip4_id     = nautobot_available_ip_address.example.id
+#  primary_ip6_id     = "2001:db8::100"  # Optional
+#  software_version_id = "v1.0"          # Optional
+
+#  tags_ids = ["tag1", "tag2"] # Optional tags
+}
+ 
+resource "nautobot_vm_interface" "new2" {
+  name = "eth0"
+  virtual_machine_id = nautobot_virtual_machine.new2.id
   status = "Active"
   ip_addresses = [
     nautobot_available_ip_address.example.id

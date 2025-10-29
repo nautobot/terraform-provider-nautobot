@@ -42,6 +42,11 @@ func dataSourcePrefixes() *schema.Resource {
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
+						"parent_id": {
+							Description: "The ID of the parent of this prefix.",
+							Type:        schema.TypeString,
+							Computed:    true,
+						},
 						"role_id": {
 							Description: "The ID of the role associated with the prefix.",
 							Type:        schema.TypeString,
@@ -59,6 +64,11 @@ func dataSourcePrefixes() *schema.Resource {
 						},
 						"namespace_id": {
 							Description: "The ID of the namespace associated with the prefix.",
+							Type:        schema.TypeString,
+							Computed:    true,
+						},
+						"vlan_id": {
+							Description: "The UUID of the VLAN the prefix belongs to.",
 							Type:        schema.TypeString,
 							Computed:    true,
 						},
@@ -133,6 +143,12 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 			itemMap["status"] = statusName
 		}
 
+		if prefix.Parent.IsSet() {
+			if parent := prefix.Parent.Get(); parent != nil && parent.Id != nil && parent.Id.String != nil {
+				itemMap["parent_id"] = *parent.Id.String
+			}
+		}
+
 		if prefix.Tenant.IsSet() {
 			if tenant := prefix.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
 				itemMap["tenant_id"] = *tenant.Id.String
@@ -153,6 +169,12 @@ func dataSourcePrefixesRead(ctx context.Context, d *schema.ResourceData, meta in
 
 		if prefix.Namespace != nil && prefix.Namespace.Id != nil && prefix.Namespace.Id.String != nil {
 			itemMap["namespace_id"] = *prefix.Namespace.Id.String
+		}
+
+		if prefix.Vlan.IsSet() {
+			if vlan := prefix.Vlan.Get(); vlan != nil && vlan.Id != nil && vlan.Id.String != nil {
+				itemMap["vlan_id"] = *vlan.Id.String
+			}
 		}
 
 		list = append(list, itemMap)
