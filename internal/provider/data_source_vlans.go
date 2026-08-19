@@ -2,90 +2,126 @@ package provider
 
 import (
 	"context"
-	"strconv"
-	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func dataSourceVLANs() *schema.Resource {
-	return &schema.Resource{
+var (
+	_ datasource.DataSource              = &VLANsDataSource{}
+	_ datasource.DataSourceWithConfigure = &VLANsDataSource{}
+)
+
+type VLANsDataSource struct {
+	client *APIClient
+}
+
+type vlanItemModel struct {
+	ID          types.String `tfsdk:"id"`
+	Vid         types.Int64  `tfsdk:"vid"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	VLANGroupID types.String `tfsdk:"vlan_group_id"`
+	Status      types.String `tfsdk:"status"`
+	TenantID    types.String `tfsdk:"tenant_id"`
+	RoleID      types.String `tfsdk:"role_id"`
+	TagsIDs     types.List   `tfsdk:"tags_ids"`
+	Created     types.String `tfsdk:"created"`
+	LastUpdated types.String `tfsdk:"last_updated"`
+	PrefixCount types.Int64  `tfsdk:"prefix_count"`
+	Display     types.String `tfsdk:"display"`
+	URL         types.String `tfsdk:"url"`
+	NaturalSlug types.String `tfsdk:"natural_slug"`
+	NotesURL    types.String `tfsdk:"notes_url"`
+}
+
+type vlansDataSourceModel struct {
+	VLANs []vlanItemModel `tfsdk:"vlans"`
+}
+
+func NewVLANsDataSource() datasource.DataSource {
+	return &VLANsDataSource{}
+}
+
+func (d *VLANsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_vlans"
+}
+
+func (d *VLANsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = dsschema.Schema{
 		Description: "Retrieves information about all VLANs in Nautobot.",
-
-		ReadContext: dataSourceVLANsRead,
-
-		Schema: map[string]*schema.Schema{
-			"vlans": {
-				Type:     schema.TypeList,
-				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"id": {
+		Attributes: map[string]dsschema.Attribute{
+			"vlans": dsschema.ListNestedAttribute{
+				Description: "List of VLANs.",
+				Computed:    true,
+				NestedObject: dsschema.NestedAttributeObject{
+					Attributes: map[string]dsschema.Attribute{
+						"id": dsschema.StringAttribute{
 							Description: "The UUID of the VLAN.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"vid": {
+						"vid": dsschema.Int64Attribute{
 							Description: "The ID (VID) of the VLAN.",
-							Type:        schema.TypeInt,
 							Computed:    true,
 						},
-						"name": {
+						"name": dsschema.StringAttribute{
 							Description: "The name of the VLAN.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"description": {
+						"description": dsschema.StringAttribute{
 							Description: "Description of the VLAN.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"vlan_group_id": {
+						"vlan_group_id": dsschema.StringAttribute{
 							Description: "The ID of the VLAN group.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"status": {
-							Description: "The status of the VLAN.",
-							Type:        schema.TypeString,
+						"status": dsschema.StringAttribute{
+							Description: "The status of the VLAN (name).",
 							Computed:    true,
 						},
-						"tenant_id": {
+						"tenant_id": dsschema.StringAttribute{
 							Description: "The ID of the tenant associated with the VLAN.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"role_id": {
+						"role_id": dsschema.StringAttribute{
 							Description: "The ID of the role associated with the VLAN.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"locations": {
-							Description: "The IDs of the locations associated with the VLAN.",
-							Type:        schema.TypeList,
-							Computed:    true,
-							Elem: &schema.Schema{
-								Type: schema.TypeString,
-							},
-						},
-						"tags_ids": {
+						"tags_ids": dsschema.ListAttribute{
 							Description: "The IDs of the tags associated with the VLAN.",
-							Type:        schema.TypeList,
 							Computed:    true,
-							Elem: &schema.Schema{
-								Type: schema.TypeString,
-							},
+							ElementType: types.StringType,
 						},
-						"created": {
-							Description: "The creation date of the VLAN.",
-							Type:        schema.TypeString,
+						"created": dsschema.StringAttribute{
+							Description: "The creation date of the VLAN (RFC3339).",
 							Computed:    true,
 						},
-						"last_updated": {
-							Description: "The last update date of the VLAN.",
-							Type:        schema.TypeString,
+						"last_updated": dsschema.StringAttribute{
+							Description: "The last update date of the VLAN (RFC3339).",
+							Computed:    true,
+						},
+						"prefix_count": dsschema.Int64Attribute{
+							Description: "Number of prefixes associated with this VLAN.",
+							Computed:    true,
+						},
+						"display": dsschema.StringAttribute{
+							Description: "Human-friendly display value.",
+							Computed:    true,
+						},
+						"url": dsschema.StringAttribute{
+							Description: "API URL of the VLAN.",
+							Computed:    true,
+						},
+						"natural_slug": dsschema.StringAttribute{
+							Description: "Natural slug for the VLAN.",
+							Computed:    true,
+						},
+						"notes_url": dsschema.StringAttribute{
+							Description: "Notes URL for the VLAN.",
 							Computed:    true,
 						},
 					},
@@ -95,115 +131,119 @@ func dataSourceVLANs() *schema.Resource {
 	}
 }
 
-func dataSourceVLANsRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
+func (d *VLANsDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	d.client = req.ProviderData.(*APIClient)
+}
 
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (d *VLANsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state vlansDataSourceModel
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Fetch VLANs list
-	rsp, _, err := c.IpamAPI.IpamVlansList(auth).Execute()
-	if err != nil {
-		return diag.Errorf("failed to get VLANs list: %s", err.Error())
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Provider not configured",
+			"API client is not configured. This is a bug in the provider configuration.",
+		)
+		return
 	}
 
-	results := rsp.Results
-	list := make([]map[string]interface{}, 0)
+	c := d.client.Client
 
-	// Iterate over the results and map each VLAN to the format expected by Terraform
-	for _, vlan := range results {
-		createdStr := ""
-		if vlan.Created.IsSet() && vlan.Created.Get() != nil {
-			createdStr = vlan.Created.Get().Format(time.RFC3339)
+	const pageLimit int32 = 200
+	var offset int32 = 0
+
+	state.VLANs = make([]vlanItemModel, 0)
+
+	for {
+		rsp, httpResp, err := c.IpamAPI.
+			IpamVlansList(ctx).
+			Limit(pageLimit).
+			Offset(offset).
+			Sort("name").
+			Execute()
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Failed to get VLANs list",
+				httpErr(err, httpResp),
+			)
+			return
 		}
 
-		lastUpdatedStr := ""
-		if vlan.LastUpdated.IsSet() && vlan.LastUpdated.Get() != nil {
-			lastUpdatedStr = vlan.LastUpdated.Get().Format(time.RFC3339)
+		results := rsp.Results
+		if len(results) == 0 {
+			break
 		}
 
-		// Prepare itemMap with mandatory fields
-		itemMap := map[string]interface{}{
-			"id":           vlan.Id,
-			"vid":          vlan.Vid,
-			"name":         vlan.Name,
-			"description":  vlan.Description,
-			"created":      createdStr,
-			"last_updated": lastUpdatedStr,
-		}
+		for _, vlan := range results {
+			var item vlanItemModel
 
-		// Handle nullable VlanGroup
-		if vlan.VlanGroup.IsSet() {
-			if vlanGroup := vlan.VlanGroup.Get(); vlanGroup != nil && vlanGroup.Id != nil {
-				itemMap["vlan_group_id"] = *vlanGroup.Id
+			if vlan.Id == nil || *vlan.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid VLAN data",
+					"VLANs list returned an item with no id (name: "+vlan.Name+")",
+				)
+				return
 			}
-		}
+			item.ID = types.StringValue(*vlan.Id)
 
-		// Fetch status name from the status ID
-		if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
-			statusID := *vlan.Status.Id.String
-			statusName, err := getStatusName(ctx, c, t, statusID)
-			if err != nil {
-				return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+			item.Vid = types.Int64Value(int64(vlan.Vid))
+			item.Name = types.StringValue(vlan.Name)
+			item.Description = types.StringValue(derefStr(vlan.Description))
+			item.Created = nullableTimeStr(vlan.Created)
+			item.LastUpdated = nullableTimeStr(vlan.LastUpdated)
+
+			item.VLANGroupID = nullableFKStr(vlan.VlanGroup)
+
+			statusName := ""
+			if vlan.Status.Id != nil && vlan.Status.Id.String != nil {
+				statusID := *vlan.Status.Id.String
+				if statusID != "" {
+					if name, err := getStatusName(ctx, c, statusID); err == nil {
+						statusName = name
+					}
+				}
 			}
-			itemMap["status"] = statusName
-		}
+			item.Status = types.StringValue(statusName)
 
-		// Handle nullable Tenant
-		if vlan.Tenant.IsSet() {
-			if tenant := vlan.Tenant.Get(); tenant != nil && tenant.Id != nil && tenant.Id.String != nil {
-				itemMap["tenant_id"] = *tenant.Id.String
+			item.TenantID = nullableFKStr(vlan.Tenant)
+			item.RoleID = nullableFKStr(vlan.Role)
+
+			if len(vlan.Tags) > 0 {
+				tagVals := make([]attr.Value, 0, len(vlan.Tags))
+				for _, tag := range vlan.Tags {
+					if tag.Id != nil && tag.Id.String != nil {
+						tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+					}
+				}
+				item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
+			} else {
+				item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
 			}
-		}
 
-		// Handle nullable Role
-		if vlan.Role.IsSet() {
-			if role := vlan.Role.Get(); role != nil && role.Id != nil && role.Id.String != nil {
-				itemMap["role_id"] = *role.Id.String
+			if vlan.PrefixCount != nil {
+				item.PrefixCount = types.Int64Value(int64(*vlan.PrefixCount))
+			} else {
+				item.PrefixCount = types.Int64Value(0)
 			}
+
+			item.Display = types.StringValue(vlan.Display)
+			item.URL = types.StringValue(vlan.Url)
+			item.NaturalSlug = types.StringValue(vlan.NaturalSlug)
+			item.NotesURL = types.StringValue(vlan.NotesUrl)
+
+			state.VLANs = append(state.VLANs, item)
 		}
 
-		// Handle locations
-		var locations []string
-		for _, location := range vlan.Locations {
-			if location.Id != nil && location.Id.String != nil {
-				locations = append(locations, *location.Id.String)
-			}
-		}
-		itemMap["locations"] = locations
+		offset += int32(len(results))
 
-		// Handle Tags
-		var tags []string
-		for _, tag := range vlan.Tags {
-			if tag.Id != nil && tag.Id.String != nil {
-				tags = append(tags, *tag.Id.String)
-			}
+		if !rsp.Next.IsSet() || rsp.Next.Get() == nil || *rsp.Next.Get() == "" {
+			break
 		}
-		itemMap["tags_ids"] = tags
-
-		// Add the VLAN to the list
-		list = append(list, itemMap)
 	}
 
-	// Set the VLANs list in the resource data
-	if err := d.Set("vlans", list); err != nil {
-		return diag.FromErr(err)
-	}
+	tflog.Debug(ctx, "read VLANs", map[string]any{"count": len(state.VLANs)})
 
-	// Always run
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-
-	return diags
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

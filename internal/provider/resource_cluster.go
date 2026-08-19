@@ -3,355 +3,398 @@ package provider
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	nb "github.com/nautobot/go-nautobot/v3"
 )
 
-func resourceCluster() *schema.Resource {
-	return &schema.Resource{
+var (
+	_ resource.Resource                = &ClusterResource{}
+	_ resource.ResourceWithImportState = &ClusterResource{}
+)
+
+type ClusterResource struct {
+	client *APIClient
+}
+
+type clusterModel struct {
+	ID             types.String `tfsdk:"id"`
+	Name           types.String `tfsdk:"name"`
+	Comments       types.String `tfsdk:"comments"`
+	ClusterTypeID  types.String `tfsdk:"cluster_type_id"`
+	ClusterGroupID types.String `tfsdk:"cluster_group_id"`
+	TenantID       types.String `tfsdk:"tenant_id"`
+	LocationID     types.String `tfsdk:"location_id"`
+	TagsIDs        types.List   `tfsdk:"tags_ids"`
+	Created        types.String `tfsdk:"created"`
+}
+
+func NewClusterResource() resource.Resource {
+	return &ClusterResource{}
+}
+
+func (r *ClusterResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_cluster"
+}
+
+func (r *ClusterResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = rschema.Schema{
 		Description: "This object manages a cluster in Nautobot",
-
-		CreateContext: resourceClusterCreate,
-		ReadContext:   resourceClusterRead,
-		UpdateContext: resourceClusterUpdate,
-		DeleteContext: resourceClusterDelete,
-
-		Schema: map[string]*schema.Schema{
-			"name": {
-				Description: "Cluster's name.",
-				Type:        schema.TypeString,
-				Required:    true,
-			},
-			"comments": {
-				Description: "Comments or notes about the cluster.",
-				Type:        schema.TypeString,
-				Optional:    true,
-			},
-			"cluster_type_id": {
-				Description: "ID of the Cluster's type. This can be sourced from the cluster_type resource or data source.",
-				Type:        schema.TypeString,
-				Required:    true,
-			},
-			"cluster_group_id": {
-				Description: "ID of the Cluster's group.",
-				Type:        schema.TypeString,
-				Optional:    true,
-			},
-			"tenant_id": {
-				Description: "ID of the Tenant associated with the cluster.",
-				Type:        schema.TypeString,
-				Optional:    true,
-			},
-			"location_id": {
-				Description: "ID of the Location of the cluster.",
-				Type:        schema.TypeString,
-				Optional:    true,
-			},
-			"tags_ids": {
-				Description: "IDs of the Tags associated with the cluster.",
-				Type:        schema.TypeList,
-				Optional:    true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
+		Attributes: map[string]rschema.Attribute{
+			"id": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Cluster's UUID.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"created": {
-				Description: "Creation date of the cluster.",
-				Type:        schema.TypeString,
-				Computed:    true,
+
+			"name": rschema.StringAttribute{
+				Required:    true,
+				Description: "Cluster's name.",
 			},
-			"last_updated": {
-				Description: "Last update date of the cluster.",
-				Type:        schema.TypeString,
+			"cluster_type_id": rschema.StringAttribute{
+				Required:    true,
+				Description: "ID of the Cluster's type.",
+			},
+
+			"comments": rschema.StringAttribute{
+				Optional:    true,
 				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Comments or notes about the cluster.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"cluster_group_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "ID of the Cluster's group.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"tenant_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "ID of the Tenant associated with the cluster.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"location_id": rschema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "ID of the Location of the cluster.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"tags_ids": rschema.ListAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "IDs of the Tags associated with the cluster.",
+				ElementType: types.StringType,
+				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"created": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Creation date of the cluster (RFC3339).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
 }
 
-func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (r *ClusterResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	r.client = req.ProviderData.(*APIClient)
+}
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan clusterModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	clusterName := d.Get("name").(string)
-	existingClusters, _, err := c.VirtualizationAPI.VirtualizationClustersList(auth).Name([]string{clusterName}).Execute()
+	c := r.client.Client
+
+	var body nb.ClusterRequest
+	body.Name = plan.Name.ValueString()
+
+	clusterTypeRef := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+		String: stringPtr(plan.ClusterTypeID.ValueString()),
+	}
+	body.ClusterType = nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+		Id: clusterTypeRef,
+	}
+
+	if v := plan.Comments.ValueString(); v != "" {
+		body.Comments = &v
+	}
+
+	if v := plan.ClusterGroupID.ValueString(); v != "" {
+		body.ClusterGroup = makeFKUser(v)
+	}
+
+	if v := plan.TenantID.ValueString(); v != "" {
+		body.Tenant = makeFKUser(v)
+	}
+
+	if v := plan.LocationID.ValueString(); v != "" {
+		body.Location = makeFKUser(v)
+	}
+
+	if !plan.TagsIDs.IsNull() && !plan.TagsIDs.IsUnknown() {
+		var tagIDs []string
+		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if len(tagIDs) > 0 {
+			tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+			for _, t := range tagIDs {
+				if t == "" {
+					continue
+				}
+				tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+					Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+						String: stringPtr(t),
+					},
+				})
+			}
+			body.Tags = tags
+		}
+	}
+
+	out, httpResp, err := c.VirtualizationAPI.
+		VirtualizationClustersCreate(ctx).
+		ClusterRequest(body).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to list clusters: %s", err.Error())
+		resp.Diagnostics.AddError("failed to create cluster", httpErr(err, httpResp))
+		return
+	}
+	if out.Id == nil || *out.Id == "" {
+		resp.Diagnostics.AddError("invalid API response", "created cluster returned no id")
+		return
 	}
 
-	// If a cluster with the same name exists, use its ID and skip creation
-	if len(existingClusters.Results) > 0 {
-		d.SetId(existingClusters.Results[0].Id)
-		return resourceClusterRead(ctx, d, meta)
+	model, found, diags := r.readModel(ctx, *out.Id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read cluster", "created cluster was not found")
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state clusterModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	// Prepare ClusterRequest
-	var cluster nb.ClusterRequest
-	cluster.Name = clusterName
-	cluster.ClusterType = nb.BulkWritableCableRequestStatus{
-		Id: &nb.BulkWritableCableRequestStatusId{
-			String: stringPtr(d.Get("cluster_type_id").(string)),
-		},
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
 	}
 
-	// Optional fields
-	if v, ok := d.GetOk("comments"); ok {
-		comments := v.(string)
-		cluster.Comments = &comments
+	model, found, diags := r.readModel(ctx, id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan, state clusterModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	if v, ok := d.GetOk("cluster_group_id"); ok {
-		var clusterGroup nb.NullableBulkWritableCircuitRequestTenant
-		clusterGroup.Set(&nb.BulkWritableCircuitRequestTenant{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(v.(string)),
-			},
-		})
-		cluster.ClusterGroup = clusterGroup
+	id := state.ID.ValueString()
+	c := r.client.Client
+
+	var patch nb.PatchedClusterRequest
+
+	if !plan.Name.Equal(state.Name) {
+		v := plan.Name.ValueString()
+		patch.Name = &v
 	}
 
-	if v, ok := d.GetOk("tenant_id"); ok {
-		var tenant nb.NullableBulkWritableCircuitRequestTenant
-		tenant.Set(&nb.BulkWritableCircuitRequestTenant{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(v.(string)),
-			},
-		})
-		cluster.Tenant = tenant
+	if !plan.Comments.Equal(state.Comments) {
+		if plan.Comments.ValueString() == "" {
+			empty := ""
+			patch.Comments = &empty
+		} else {
+			v := plan.Comments.ValueString()
+			patch.Comments = &v
+		}
 	}
 
-	if v, ok := d.GetOk("location_id"); ok {
-		var location nb.NullableBulkWritableCircuitRequestTenant
-		location.Set(&nb.BulkWritableCircuitRequestTenant{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: stringPtr(v.(string)),
-			},
-		})
-		cluster.Location = location
+	if !plan.ClusterTypeID.Equal(state.ClusterTypeID) {
+		v := plan.ClusterTypeID.ValueString()
+		clusterTypeRef := &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+			String: stringPtr(v),
+		}
+		ct := nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+			Id: clusterTypeRef,
+		}
+		patch.ClusterType = &ct
 	}
 
-	if v, ok := d.GetOk("tags_ids"); ok {
-		var tags []nb.BulkWritableCableRequestStatus
-		for _, tag := range v.([]interface{}) {
-			tags = append(tags, nb.BulkWritableCableRequestStatus{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: stringPtr(tag.(string)),
+	if !plan.ClusterGroupID.Equal(state.ClusterGroupID) {
+		patch.ClusterGroup = makeFKUser(plan.ClusterGroupID.ValueString())
+	}
+
+	if !plan.TenantID.Equal(state.TenantID) {
+		patch.Tenant = makeFKUser(plan.TenantID.ValueString())
+	}
+
+	if !plan.LocationID.Equal(state.LocationID) {
+		patch.Location = makeFKUser(plan.LocationID.ValueString())
+	}
+
+	if !plan.TagsIDs.Equal(state.TagsIDs) {
+		var tagIDs []string
+		resp.Diagnostics.Append(plan.TagsIDs.ElementsAs(ctx, &tagIDs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		tags := make([]nb.ApprovalWorkflowStageResponseApprovalWorkflowStage, 0, len(tagIDs))
+		for _, t := range tagIDs {
+			if t == "" {
+				continue
+			}
+			tags = append(tags, nb.ApprovalWorkflowStageResponseApprovalWorkflowStage{
+				Id: &nb.ApprovalWorkflowApprovalWorkflowDefinitionId{
+					String: stringPtr(t),
 				},
 			})
 		}
-		cluster.Tags = tags
+		patch.Tags = tags
 	}
 
-	// Create the cluster
-	rsp, _, err := c.VirtualizationAPI.VirtualizationClustersCreate(auth).ClusterRequest(cluster).Execute()
+	_, httpResp, err := c.VirtualizationAPI.
+		VirtualizationClustersPartialUpdate(ctx, id).
+		PatchedClusterRequest(patch).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to create cluster: %s", err.Error())
+		resp.Diagnostics.AddError("failed to update cluster", httpErr(err, httpResp))
+		return
 	}
 
-	// Set resource ID (Cluster ID)
-	d.SetId(rsp.Id)
-
-	return resourceClusterRead(ctx, d, meta)
+	model, found, diags := r.readModel(ctx, id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read cluster", "updated cluster was not found")
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
-func resourceClusterRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state clusterModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	httpResp, err := r.client.Client.VirtualizationAPI.
+		VirtualizationClustersDestroy(ctx, state.ID.ValueString()).
+		Execute()
+	if err != nil && !isNotFoundResponse(httpResp) {
+		resp.Diagnostics.AddError("failed to delete cluster", httpErr(err, httpResp))
+		return
+	}
+}
 
-	// Fetch cluster by ID
-	clusterId := d.Id()
-	cluster, _, err := c.VirtualizationAPI.VirtualizationClustersRetrieve(auth, clusterId).Execute()
+func (r *ClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *ClusterResource) readModel(ctx context.Context, id string) (clusterModel, bool, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	cl, httpResp, err := r.client.Client.VirtualizationAPI.
+		VirtualizationClustersRetrieve(ctx, id).
+		Execute()
+	if isNotFoundResponse(httpResp) {
+		return clusterModel{}, false, diags
+	}
 	if err != nil {
-		return diag.Errorf("failed to read cluster: %s", err.Error())
+		diags.AddError("failed to read cluster", httpErr(err, httpResp))
+		return clusterModel{}, false, diags
 	}
 
-	// Map the retrieved data back to Terraform state
-	d.Set("name", cluster.Name)
+	var m clusterModel
+	m.ID = types.StringValue(id)
+	m.Name = types.StringValue(cl.Name)
 
-	// Extract cluster_type_id safely
-	if cluster.ClusterType.Id != nil && cluster.ClusterType.Id.String != nil {
-		d.Set("cluster_type_id", *cluster.ClusterType.Id.String)
+	if cl.ClusterType.Id != nil && cl.ClusterType.Id.String != nil {
+		m.ClusterTypeID = types.StringValue(*cl.ClusterType.Id.String)
+	} else {
+		m.ClusterTypeID = types.StringValue("")
 	}
 
-	// Check if comments exist before setting
-	if cluster.Comments != nil {
-		d.Set("comments", *cluster.Comments)
-	}
+	m.Comments = types.StringValue(derefStr(cl.Comments))
 
-	// Handle nullable cluster group
-	if cluster.ClusterGroup.IsSet() {
-		if clusterGroup := cluster.ClusterGroup.Get(); clusterGroup != nil && clusterGroup.Id != nil {
-			d.Set("cluster_group_id", *clusterGroup.Id.String)
-		}
-	}
+	m.ClusterGroupID = nullableFKStr(cl.ClusterGroup)
+	m.TenantID = nullableFKStr(cl.Tenant)
+	m.LocationID = nullableFKStr(cl.Location)
 
-	// Handle nullable tenant
-	if cluster.Tenant.IsSet() {
-		if tenant := cluster.Tenant.Get(); tenant != nil && tenant.Id != nil {
-			d.Set("tenant_id", *tenant.Id.String)
-		}
-	}
-
-	// Handle nullable location
-	if cluster.Location.IsSet() {
-		if location := cluster.Location.Get(); location != nil && location.Id != nil {
-			d.Set("location_id", *location.Id.String)
-		}
-	}
-
-	// Set tags
-	if len(cluster.Tags) > 0 {
-		var tags []string
-		for _, tag := range cluster.Tags {
-			if tag.Id != nil && tag.Id.String != nil {
-				tags = append(tags, *tag.Id.String)
+	if len(cl.Tags) > 0 {
+		vals := make([]attr.Value, 0, len(cl.Tags))
+		for _, t := range cl.Tags {
+			if t.Id != nil && t.Id.String != nil {
+				vals = append(vals, types.StringValue(*t.Id.String))
 			}
 		}
-		d.Set("tags_ids", tags)
+		m.TagsIDs = types.ListValueMust(types.StringType, vals)
+	} else {
+		m.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
 	}
 
-	d.Set("created", cluster.Created)
-	d.Set("last_updated", cluster.LastUpdated)
+	m.Created = nullableTimeStr(cl.Created)
 
-	return nil
-}
-
-func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-
-	clusterId := d.Id()
-
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	var cluster nb.PatchedClusterRequest
-
-	// Update the fields that have changed
-	if d.HasChange("name") {
-		name := d.Get("name").(string)
-		cluster.Name = &name // Set the pointer for the name
-	}
-	if d.HasChange("comments") {
-		comments := d.Get("comments").(string)
-		cluster.Comments = &comments
-	}
-	if d.HasChange("cluster_type_id") {
-		clusterTypeID := d.Get("cluster_type_id").(string)
-		cluster.ClusterType = &nb.BulkWritableCableRequestStatus{
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: &clusterTypeID, // Pass pointer for the string value
-			},
-		}
-	}
-	if d.HasChange("cluster_group_id") {
-		clusterGroupID := d.Get("cluster_group_id").(string)
-		clusterGroup := &nb.BulkWritableCircuitRequestTenant{ // Create the cluster group as a pointer
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: &clusterGroupID, // Pass pointer for the string value
-			},
-		}
-		cluster.ClusterGroup.Set(clusterGroup) // Pass the pointer to Set()
-	}
-	if d.HasChange("tenant_id") {
-		tenantID := d.Get("tenant_id").(string)
-		tenant := &nb.BulkWritableCircuitRequestTenant{ // Create the tenant as a pointer
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: &tenantID, // Pass pointer for the string value
-			},
-		}
-		cluster.Tenant.Set(tenant) // Pass the pointer to Set()
-	}
-	if d.HasChange("location_id") {
-		locationID := d.Get("location_id").(string)
-		location := &nb.BulkWritableCircuitRequestTenant{ // Create the location as a pointer
-			Id: &nb.BulkWritableCableRequestStatusId{
-				String: &locationID, // Pass pointer for the string value
-			},
-		}
-		cluster.Location.Set(location) // Pass the pointer to Set()
-	}
-	if d.HasChange("tags_ids") {
-		var tags []nb.BulkWritableCableRequestStatus
-		for _, tag := range d.Get("tags_ids").([]interface{}) {
-			tagID := tag.(string)
-			tags = append(tags, nb.BulkWritableCableRequestStatus{
-				Id: &nb.BulkWritableCableRequestStatusId{
-					String: &tagID, // Pass pointer for the string value
-				},
-			})
-		}
-		cluster.Tags = tags
-	}
-
-	// Call the API to update the cluster
-	_, _, err := c.VirtualizationAPI.VirtualizationClustersPartialUpdate(auth, clusterId).PatchedClusterRequest(cluster).Execute()
-	if err != nil {
-		return diag.Errorf("failed to update cluster: %s", err.Error())
-	}
-
-	return resourceClusterRead(ctx, d, meta)
-}
-
-func resourceClusterDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Delete the cluster by ID
-	clusterId := d.Id()
-	_, err := c.VirtualizationAPI.VirtualizationClustersDestroy(auth, clusterId).Execute()
-	if err != nil {
-		return diag.Errorf("failed to delete cluster: %s", err.Error())
-	}
-
-	// Clear the ID
-	d.SetId("")
-
-	return nil
+	return m, true, diags
 }

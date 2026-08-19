@@ -2,107 +2,131 @@ package provider
 
 import (
 	"context"
-	"strconv"
-	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func dataSourceVirtualMachines() *schema.Resource {
-	return &schema.Resource{
-		Description: "Retrieves information about virtual machines in Nautobot.",
+var (
+	_ datasource.DataSource              = &VirtualMachinesDataSource{}
+	_ datasource.DataSourceWithConfigure = &VirtualMachinesDataSource{}
+)
 
-		ReadContext: dataSourceVirtualMachinesRead,
+type VirtualMachinesDataSource struct {
+	client *APIClient
+}
 
-		Schema: map[string]*schema.Schema{
-			"virtual_machines": {
-				Type:     schema.TypeList,
-				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"id": {
+type virtualMachineItemModel struct {
+	ID                types.String `tfsdk:"id"`
+	Name              types.String `tfsdk:"name"`
+	ClusterID         types.String `tfsdk:"cluster_id"`
+	Status            types.String `tfsdk:"status"`
+	TenantID          types.String `tfsdk:"tenant_id"`
+	PlatformID        types.String `tfsdk:"platform_id"`
+	RoleID            types.String `tfsdk:"role_id"`
+	SoftwareVersionID types.String `tfsdk:"software_version_id"`
+	PrimaryIP4ID      types.String `tfsdk:"primary_ip4_id"`
+	PrimaryIP6ID      types.String `tfsdk:"primary_ip6_id"`
+	Vcpus             types.Int64  `tfsdk:"vcpus"`
+	Memory            types.Int64  `tfsdk:"memory"`
+	Disk              types.Int64  `tfsdk:"disk"`
+	Comments          types.String `tfsdk:"comments"`
+	TagsIDs           types.List   `tfsdk:"tags_ids"`
+	Created           types.String `tfsdk:"created"`
+	LastUpdated       types.String `tfsdk:"last_updated"`
+}
+
+type virtualMachinesDataSourceModel struct {
+	VirtualMachines []virtualMachineItemModel `tfsdk:"virtual_machines"`
+}
+
+func NewVirtualMachinesDataSource() datasource.DataSource {
+	return &VirtualMachinesDataSource{}
+}
+
+func (d *VirtualMachinesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_virtual_machines"
+}
+
+func (d *VirtualMachinesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = dsschema.Schema{
+		Description: "Retrieves information about all virtual machines in Nautobot.",
+		Attributes: map[string]dsschema.Attribute{
+			"virtual_machines": dsschema.ListNestedAttribute{
+				Description: "List of virtual machines.",
+				Computed:    true,
+				NestedObject: dsschema.NestedAttributeObject{
+					Attributes: map[string]dsschema.Attribute{
+						"id": dsschema.StringAttribute{
 							Description: "The UUID of the virtual machine.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"name": {
+						"name": dsschema.StringAttribute{
 							Description: "The name of the virtual machine.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"cluster_id": {
+						"cluster_id": dsschema.StringAttribute{
 							Description: "The ID of the cluster associated with the virtual machine.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"status": {
+						"status": dsschema.StringAttribute{
 							Description: "The name of the status of the virtual machine.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"tenant_id": {
+						"tenant_id": dsschema.StringAttribute{
 							Description: "The ID of the tenant associated with the virtual machine.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"platform_id": {
+						"platform_id": dsschema.StringAttribute{
 							Description: "The ID of the platform associated with the virtual machine.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"role_id": {
+						"role_id": dsschema.StringAttribute{
 							Description: "The ID of the role associated with the virtual machine.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"primary_ip4_id": {
+						"software_version_id": dsschema.StringAttribute{
+							Description: "The ID of the software version installed on the virtual machine.",
+							Computed:    true,
+						},
+						"primary_ip4_id": dsschema.StringAttribute{
 							Description: "The ID of the primary IPv4 address.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"primary_ip6_id": {
+						"primary_ip6_id": dsschema.StringAttribute{
 							Description: "The ID of the primary IPv6 address.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"vcpus": {
+						"vcpus": dsschema.Int64Attribute{
 							Description: "The number of virtual CPUs.",
-							Type:        schema.TypeInt,
 							Computed:    true,
 						},
-						"memory": {
+						"memory": dsschema.Int64Attribute{
 							Description: "The amount of memory in MB.",
-							Type:        schema.TypeInt,
 							Computed:    true,
 						},
-						"disk": {
+						"disk": dsschema.Int64Attribute{
 							Description: "The disk size in GB.",
-							Type:        schema.TypeInt,
 							Computed:    true,
 						},
-						"comments": {
+						"comments": dsschema.StringAttribute{
 							Description: "Comments or notes about the virtual machine.",
-							Type:        schema.TypeString,
 							Computed:    true,
 						},
-						"tags_ids": {
+						"tags_ids": dsschema.ListAttribute{
 							Description: "The IDs of the tags associated with the virtual machine.",
-							Type:        schema.TypeList,
 							Computed:    true,
-							Elem: &schema.Schema{
-								Type: schema.TypeString,
-							},
+							ElementType: types.StringType,
 						},
-						"created": {
-							Description: "The creation date of the virtual machine.",
-							Type:        schema.TypeString,
+						"created": dsschema.StringAttribute{
+							Description: "The creation date of the virtual machine (RFC3339).",
 							Computed:    true,
 						},
-						"last_updated": {
-							Description: "The last update date of the virtual machine.",
-							Type:        schema.TypeString,
+						"last_updated": dsschema.StringAttribute{
+							Description: "The last update date of the virtual machine (RFC3339).",
 							Computed:    true,
 						},
 					},
@@ -112,116 +136,149 @@ func dataSourceVirtualMachines() *schema.Resource {
 	}
 }
 
-func dataSourceVirtualMachinesRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
+func (d *VirtualMachinesDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	d.client = req.ProviderData.(*APIClient)
+}
 
-	c := meta.(*apiClient).Client
-	s := meta.(*apiClient).Server
-	t := meta.(*apiClient).Token.token
+func (d *VirtualMachinesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state virtualMachinesDataSourceModel
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Fetch virtual machines list
-	rsp, _, err := c.VirtualizationAPI.VirtualizationVirtualMachinesList(auth).Execute()
-	if err != nil {
-		return diag.Errorf("failed to get virtual machines list from %s: %s", s, err.Error())
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Provider not configured",
+			"API client is not configured. This is a bug in the provider configuration.",
+		)
+		return
 	}
 
-	results := rsp.Results
-	list := make([]map[string]interface{}, 0)
+	c := d.client.Client
 
-	for _, vm := range results {
-		createdStr := ""
-		if vm.Created.IsSet() && vm.Created.Get() != nil {
-			createdStr = vm.Created.Get().Format(time.RFC3339)
+	const pageLimit int32 = 200
+	var offset int32 = 0
+
+	state.VirtualMachines = make([]virtualMachineItemModel, 0)
+
+	for {
+		rsp, httpResp, err := c.VirtualizationAPI.
+			VirtualizationVirtualMachinesList(ctx).
+			Limit(pageLimit).
+			Offset(offset).
+			Sort("name").
+			Execute()
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Failed to get virtual machines list",
+				httpErr(err, httpResp),
+			)
+			return
 		}
 
-		lastUpdatedStr := ""
-		if vm.LastUpdated.IsSet() && vm.LastUpdated.Get() != nil {
-			lastUpdatedStr = vm.LastUpdated.Get().Format(time.RFC3339)
+		results := rsp.Results
+		if len(results) == 0 {
+			break
 		}
 
-		itemMap := map[string]interface{}{
-			"id":           vm.Id,
-			"name":         vm.Name,
-			"vcpus":        vm.Vcpus.Get(),
-			"memory":       vm.Memory.Get(),
-			"disk":         vm.Disk.Get(),
-			"comments":     vm.Comments,
-			"created":      createdStr,
-			"last_updated": lastUpdatedStr,
-			"tags_ids":     vm.Tags,
-		}
+		for _, vm := range results {
+			var item virtualMachineItemModel
 
-		// Extract cluster_id, status, and other fields
-		if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
-			itemMap["cluster_id"] = *vm.Cluster.Id.String
-		}
-
-		if vm.Status.Id != nil && vm.Status.Id.String != nil {
-			statusID := *vm.Status.Id.String
-			statusName, err := getStatusName(ctx, c, t, statusID)
-			if err != nil {
-				return diag.Errorf("failed to get status name for ID %s: %s", statusID, err.Error())
+			if vm.Id == nil || *vm.Id == "" {
+				resp.Diagnostics.AddError(
+					"Invalid virtual machine data",
+					"Virtual machines list returned an item with no id (name: "+vm.Name+")",
+				)
+				return
 			}
-			itemMap["status"] = statusName
-		}
+			item.ID = types.StringValue(*vm.Id)
 
-		// Handle nullable fields (tenant, platform, role, etc.)
-		if vm.Tenant.IsSet() {
-			tenant := vm.Tenant.Get()
-			if tenant != nil && tenant.Id != nil {
-				itemMap["tenant_id"] = *tenant.Id.String
+			item.Created = nullableTimeStr(vm.Created)
+			item.LastUpdated = nullableTimeStr(vm.LastUpdated)
+
+			item.Name = types.StringValue(vm.Name)
+
+			vcpusVal := int64(0)
+			if vm.Vcpus.IsSet() && vm.Vcpus.Get() != nil {
+				vcpusVal = int64(*vm.Vcpus.Get())
 			}
-		}
+			item.Vcpus = types.Int64Value(vcpusVal)
 
-		if vm.Platform.IsSet() {
-			platform := vm.Platform.Get()
-			if platform != nil && platform.Id != nil {
-				itemMap["platform_id"] = *platform.Id.String
+			memoryVal := int64(0)
+			if vm.Memory.IsSet() && vm.Memory.Get() != nil {
+				memoryVal = int64(*vm.Memory.Get())
 			}
-		}
+			item.Memory = types.Int64Value(memoryVal)
 
-		if vm.Role.IsSet() {
-			role := vm.Role.Get()
-			if role != nil && role.Id != nil {
-				itemMap["role_id"] = *role.Id.String
+			diskVal := int64(0)
+			if vm.Disk.IsSet() && vm.Disk.Get() != nil {
+				diskVal = int64(*vm.Disk.Get())
 			}
-		}
+			item.Disk = types.Int64Value(diskVal)
 
-		if vm.PrimaryIp4.IsSet() {
-			primaryIp4 := vm.PrimaryIp4.Get()
-			if primaryIp4 != nil && primaryIp4.Id != nil {
-				itemMap["primary_ip4_id"] = *primaryIp4.Id.String
+			item.Comments = types.StringValue(derefStr(vm.Comments))
+
+			clusterID := ""
+			if vm.Cluster.Id != nil && vm.Cluster.Id.String != nil {
+				clusterID = *vm.Cluster.Id.String
 			}
-		}
+			item.ClusterID = types.StringValue(clusterID)
 
-		if vm.PrimaryIp6.IsSet() {
-			primaryIp6 := vm.PrimaryIp6.Get()
-			if primaryIp6 != nil && primaryIp6.Id != nil {
-				itemMap["primary_ip6_id"] = *primaryIp6.Id.String
+			statusName := ""
+			if vm.Status.Id != nil && vm.Status.Id.String != nil {
+				statusID := *vm.Status.Id.String
+				if statusID != "" {
+					if n, err := getStatusName(ctx, c, statusID); err == nil {
+						statusName = n
+					}
+				}
 			}
+			item.Status = types.StringValue(statusName)
+
+			item.TenantID = nullableFKStr(vm.Tenant)
+			item.PlatformID = nullableFKStr(vm.Platform)
+			item.RoleID = nullableFKStr(vm.Role)
+			item.SoftwareVersionID = nullableSoftwareVersionStr(vm.SoftwareVersion)
+
+			primaryIPv4ID := ""
+			if vm.PrimaryIp4.IsSet() {
+				if ip4 := vm.PrimaryIp4.Get(); ip4 != nil && ip4.Id != nil && ip4.Id.String != nil {
+					primaryIPv4ID = *ip4.Id.String
+				}
+			}
+			item.PrimaryIP4ID = types.StringValue(primaryIPv4ID)
+
+			primaryIPv6ID := ""
+			if vm.PrimaryIp6.IsSet() {
+				if ip6 := vm.PrimaryIp6.Get(); ip6 != nil && ip6.Id != nil && ip6.Id.String != nil {
+					primaryIPv6ID = *ip6.Id.String
+				}
+			}
+			item.PrimaryIP6ID = types.StringValue(primaryIPv6ID)
+
+			if len(vm.Tags) > 0 {
+				tagVals := make([]attr.Value, 0, len(vm.Tags))
+				for _, tag := range vm.Tags {
+					if tag.Id != nil && tag.Id.String != nil {
+						tagVals = append(tagVals, types.StringValue(*tag.Id.String))
+					}
+				}
+				item.TagsIDs = types.ListValueMust(types.StringType, tagVals)
+			} else {
+				item.TagsIDs = types.ListValueMust(types.StringType, []attr.Value{})
+			}
+
+			state.VirtualMachines = append(state.VirtualMachines, item)
 		}
 
-		list = append(list, itemMap)
+		offset += int32(len(results))
+
+		if !rsp.Next.IsSet() || rsp.Next.Get() == nil || *rsp.Next.Get() == "" {
+			break
+		}
 	}
 
-	if err := d.Set("virtual_machines", list); err != nil {
-		return diag.FromErr(err)
-	}
+	tflog.Debug(ctx, "read virtual machines", map[string]any{"count": len(state.VirtualMachines)})
 
-	// Set ID for the data source
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-
-	return diags
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

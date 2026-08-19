@@ -1,13 +1,9 @@
 # Terraform Provider Nautobot
 
-## :warning: Disclaimer :warning:
-
-This project is in **beta** development stage, and it's suitable to change before being released as generally available. Use it at your own discretion.
-
 ## Requirements
 
-- [Terraform](https://www.terraform.io/downloads.html) >= 0.13.x
-- [Go](https://golang.org/doc/install) >= 1.21.13
+* [Terraform](https://www.terraform.io/downloads.html) or [OpenTofu](https://opentofu.org/docs/intro/install/). The versions used for acceptance tests are defined in the [Tests workflow](.github/workflows/test.yml).
+* [Go](https://golang.org/doc/install). The required Go version is defined in [`go.mod`](go.mod).
 
 ## Building The Provider
 
@@ -35,14 +31,14 @@ Then commit the changes to `go.mod` and `go.sum`.
 
 ## Using the provider
 
-The provide takes two arguments, `url` and `token`. For the data sources and resources supported, take a look at the [internal/provider](internal/provider) folder. In the next example, we capture the data of all manufacturers and create a new manufacturer "Vendor I".
+The provide requires two arguments, `url` and `token`. For the data sources and resources supported, take a look at the [internal/provider](internal/provider) folder. In the next example, we capture the data of all manufacturers and create a new manufacturer "Vendor I". For all arguments that the provider accepts, see its [documentation](docs/index.md)
 
 ```hcl
 terraform {
   required_providers {
     nautobot = {
-      version = "0.0.1-beta"
-      source  = "nautobot/nautobot"
+      version = "3.0.2"
+      source  = "registry.terraform.io/nautobot/nautobot"
     }
   }
 }
@@ -64,17 +60,50 @@ resource "nautobot_manufacturer" "new" {
 
 If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
 
+Please read the [contributor guide](CONTRIBUTORS.md) before opening a pull request.
+
 There are a few make targets you can leverage:
 
 - `make install`: To compile the provider.
-- `go generate ./...`: To generate or update documentation.
+- `make fmt`: Format all tracked Go files with `gofmt`.
+- `make fmt-check`: Check Go formatting without modifying files.
+- `make docs`: To generate or update documentation.
 - `make local`: Test local version of the provider.
-- `make testacc`: To run the full suite of Acceptance tests.
+- `make testacc`: Start or reuse a local Nautobot instance and run the full acceptance test suite against it.
+- `make testacc-run`: Run acceptance tests against an already-running Nautobot instance without managing Compose.
+- `make testacc-local-up`: Start the reusable local Nautobot instance without running tests.
+- `make testacc-local-down`: Remove the local Nautobot containers and volumes.
 
-_Note:_ Acceptance tests create real resources, and often cost money to run.
+_Note:_ Acceptance tests create real objects in the local Nautobot instance. An interrupted or
+failed run may leave test objects behind until the instance is removed.
 
 ```sh
 $ make testacc
+```
+
+OpenTofu is used when available; otherwise Terraform is used. Select one explicitly with
+`TF_TOOL=opentofu make testacc` or `TF_TOOL=terraform make testacc`.
+
+To rerun tests without invoking Compose, use:
+
+```sh
+$ make testacc-run
+```
+
+Individual acceptance tests can be selected with `TEST` and `TESTARGS`:
+
+```sh
+$ make testacc-run TEST=./internal/provider/... TESTARGS='-run TestAccTenantResource_drift'
+```
+
+By default, `testacc-run` connects to `http://localhost:8080`. Override
+`NAUTOBOT_TEST_URL` and `NAUTOBOT_TEST_TOKEN` when targeting another instance.
+
+The local Nautobot instance remains running after the tests finish or fail, so subsequent
+acceptance-test runs reuse it. Remove it explicitly with:
+
+```sh
+$ make testacc-local-down
 ```
 
 ## Credits

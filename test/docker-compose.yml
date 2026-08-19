@@ -1,0 +1,30 @@
+services:
+  testrunner:
+    build:
+      context: ./test
+      dockerfile: Dockerfile
+      target: ${TF_TARGET}
+      args:
+        GO_VERSION: ${GO_VERSION}
+        TF_VERSION: ${TF_VERSION}
+    depends_on:
+      nautobot:
+        condition: service_healthy
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:rw
+      - go_build_cache:/root/.cache/go-build
+      - go_mod_cache:/go/pkg/mod
+      - tf_plugin_cache:/workspace/.terraform.d/plugin-cache
+    environment:
+      TF_ACC: "1"
+      TF_PLUGIN_CACHE_DIR: "/workspace/.terraform.d/plugin-cache"
+      TF_TOOL: "${TF_TOOL}"
+      # The test runner shares Compose's network with Nautobot. Using the
+      # Makefile's host default (localhost:8080) would address this container.
+      NAUTOBOT_TEST_URL: "http://nautobot:8080"
+
+volumes:
+  go_build_cache: {}
+  go_mod_cache: {}
+  tf_plugin_cache: {}

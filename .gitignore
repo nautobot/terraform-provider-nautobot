@@ -6,6 +6,7 @@ terraform.tfplan
 terraform.tfstate
 bin/
 dist/
+terraform-provider-nautobot_v*
 modules-dev/
 /pkg/
 website/.vagrant
@@ -26,10 +27,11 @@ website/node_modules
 *.iml
 
 .vscode/
-test/.terraform.lock.hcl
 website/vendor
-test/*.tfplan
-test/*tfplan
+*.terraform.lock.hcl
+*.tfplan
+*tfplan
+*terraform.tfstate
 
 # Test exclusions
 !command/test-fixtures/**/*.tfstate

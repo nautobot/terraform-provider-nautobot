@@ -1,0 +1,99 @@
+name: Feature request
+description: Propose a resource, data source, attribute, or provider improvement
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the use case before the implementation. Public schemas and state behavior are compatibility-sensitive, so details about the corresponding Nautobot API are especially helpful.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched open and closed issues for an existing request.
+          required: true
+        - label: This request concerns the Terraform provider rather than Nautobot core behavior.
+          required: true
+
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: Requested change
+      multiple: true
+      options:
+        - New resource
+        - New data source
+        - New attribute or relationship
+        - Change to existing behavior
+        - Import or state behavior
+        - Provider configuration
+        - Developer tooling or tests
+    validations:
+      required: true
+
+  - type: input
+    id: object
+    attributes:
+      label: Nautobot object or provider component
+      placeholder: "Tenant, Tenant Group, provider authentication, etc."
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: What workflow is currently impossible, unsafe, or unnecessarily difficult?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed provider behavior
+      description: Describe the expected resource/data-source names, attributes, relationships, import identifier, and lifecycle behavior where known.
+      render: hcl
+    validations:
+      required: true
+
+  - type: input
+    id: nautobot_versions
+    attributes:
+      label: Relevant Nautobot versions
+      description: State when this API or behavior became available, if known.
+      placeholder: "Nautobot 2.4 and later"
+
+  - type: textarea
+    id: api
+    attributes:
+      label: Nautobot API details
+      description: Link to API documentation or list the endpoint and representative fields. Do not include credentials or private API responses.
+      placeholder: "GET/POST /api/tenancy/tenants/"
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any current workaround or alternative schema design.
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and state considerations
+      description: Note possible breaking changes, migrations, null/empty behavior, computed values, or API-version differences.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to submit a pull request for this feature.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add examples, screenshots, related issues, or other information that clarifies the request.
+

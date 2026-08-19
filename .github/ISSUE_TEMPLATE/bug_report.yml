@@ -1,0 +1,159 @@
+name: Bug report
+description: Report incorrect or unexpected provider behavior
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem. Please search existing issues first and include a minimal reproduction where possible.
+
+        Do not include Nautobot tokens, credentials, unredacted state, or other secrets. Terraform/OpenTofu state and trace logs can contain sensitive values.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched open and closed issues for an existing report.
+          required: true
+        - label: I removed credentials and other sensitive data from this report.
+          required: true
+
+  - type: dropdown
+    id: cli
+    attributes:
+      label: Terraform-compatible CLI
+      description: Which CLI exhibits the problem?
+      options:
+        - Terraform
+        - OpenTofu
+        - Both
+    validations:
+      required: true
+
+  - type: input
+    id: cli_version
+    attributes:
+      label: Terraform/OpenTofu version
+      description: Include every affected CLI version, as reported by `terraform version` or `tofu version`.
+      placeholder: "OpenTofu 1.11.1"
+    validations:
+      required: true
+
+  - type: input
+    id: provider_version
+    attributes:
+      label: Provider version
+      description: Use the selected version from `.terraform.lock.hcl`, not only the configured version constraint.
+      placeholder: "nautobot/nautobot 3.0.2"
+    validations:
+      required: true
+
+  - type: input
+    id: nautobot_version
+    attributes:
+      label: Nautobot version
+      description: Find this in Nautobot's status page or `/api/status/` response.
+      placeholder: "3.0.2"
+    validations:
+      required: true
+
+  - type: input
+    id: affected_objects
+    attributes:
+      label: Affected resources and data sources
+      description: List the complete Terraform addresses or provider types involved.
+      placeholder: "nautobot_tenant.example, data.nautobot_tenants.all"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operation
+    attributes:
+      label: Affected operations
+      description: Select every operation during which the problem occurs.
+      multiple: true
+      options:
+        - Provider configuration or initialization
+        - Plan or refresh
+        - Create
+        - Read
+        - Update
+        - Delete
+        - Import
+        - State upgrade
+    validations:
+      required: true
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Minimal configuration
+      description: Provide the smallest configuration that reproduces the problem. Replace tokens and sensitive values with placeholders.
+      render: hcl
+      placeholder: |
+        terraform {
+          required_providers {
+            nautobot = {
+              source  = "nautobot/nautobot"
+              version = "3.0.2"
+            }
+          }
+        }
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include relevant commands, whether the object was imported, and any changes made directly in Nautobot.
+      placeholder: |
+        1. Run `tofu apply`.
+        2. Change ... in Nautobot.
+        3. Run `tofu plan`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What result or plan did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include the relevant plan diff or diagnostic message.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or plan output
+      description: |
+        Paste a short, redacted excerpt or attach a file/link. If needed, reproduce with `TF_LOG=DEBUG`; inspect the output carefully because logs and plans can contain secrets.
+      render: shell
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: Reproducibility
+      options:
+        - Always
+        - Intermittently
+        - Once
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Include relevant Nautobot plugins, proxy/API behavior, object history, import history, or related issues and pull requests.
+
