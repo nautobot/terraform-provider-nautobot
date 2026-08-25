@@ -1,81 +1,120 @@
 package provider
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/tidwall/gjson"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	nb "github.com/nautobot/go-nautobot/v3"
 )
 
-func dataSourceGraphQL() *schema.Resource {
-	return &schema.Resource{
+var (
+	_ datasource.DataSource              = &GraphQLDataSource{}
+	_ datasource.DataSourceWithConfigure = &GraphQLDataSource{}
+)
+
+type GraphQLDataSource struct {
+	client *APIClient
+}
+
+type graphQLDataSourceModel struct {
+	Query types.String `tfsdk:"query"`
+	Data  types.String `tfsdk:"data"`
+}
+
+func NewGraphQLDataSource() datasource.DataSource {
+	return &GraphQLDataSource{}
+}
+
+func (d *GraphQLDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_graphql"
+}
+
+func (d *GraphQLDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = dsschema.Schema{
 		Description: "Provide an interface to make GraphQL calls to Nautobot as a flexible data source.",
-
-		ReadContext: dataSourceGraphQLRead,
-
-		Schema: map[string]*schema.Schema{
-			"query": {
+		Attributes: map[string]dsschema.Attribute{
+			"query": dsschema.StringAttribute{
 				Description: "The GraphQL query that will be sent to Nautobot.",
-				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"data": {
-				Description: "The data returned by the GraphQL query.",
-				Type:        schema.TypeString,
+			"data": dsschema.StringAttribute{
+				Description: "The data returned by the GraphQL query (JSON-encoded GraphQL `data` field).",
 				Computed:    true,
 			},
 		},
 	}
 }
 
-type reqBody struct {
-	Query string `json:"query"`
+func (d *GraphQLDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	d.client = req.ProviderData.(*APIClient)
 }
 
-// Use this as reference: https://learn.hashicorp.com/tutorials/terraform/provider-setup?in=terraform/providers#implement-read
-func dataSourceGraphQLRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
+func (d *GraphQLDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data graphQLDataSourceModel
 
-	c := meta.(*apiClient).Client
-	s := fmt.Sprintf("%s/graphql/", meta.(*apiClient).Server)
-	t := meta.(*apiClient).Token
-	query := d.Get("query").(string)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	queryBody, _ := json.Marshal(reqBody{Query: query})
-	req, err := http.NewRequestWithContext(ctx, "POST", s, bytes.NewBuffer(queryBody))
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Provider not configured",
+			"API client is not configured. This is a bug in the provider configuration.",
+		)
+		return
+	}
+
+	c := d.client.Client
+
+	queryStr := data.Query.ValueString()
+	tflog.Debug(ctx, "executing GraphQL query", map[string]any{"query": queryStr})
+
+	body := nb.GraphQLAPIRequest{
+		Query: queryStr,
+	}
+
+	gqlResp, httpResp, err := c.GraphqlAPI.
+		GraphqlCreate(ctx).
+		GraphQLAPIRequest(body).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to create request with context %s: %s", s, err.Error())
-	}
-	req.Header.Add("Content-Type", "application/json")
-	// Add the authorization header to our request.
-	t.Intercept(ctx, req)
-
-	rsp, err := c.GetConfig().HTTPClient.Do(req)
-	if err != nil {
-		return diag.Errorf("failed to successfully call %s: %s", s, err.Error())
-	}
-	defer rsp.Body.Close()
-
-	body, err := io.ReadAll(rsp.Body)
-	if err != nil {
-		return diag.Errorf("failed to decode GraphQL response from %s: %s", s, err.Error())
+		resp.Diagnostics.AddError(
+			"Failed to execute GraphQL query",
+			httpErr(err, httpResp),
+		)
+		return
 	}
 
-	data := gjson.Get(string(body), "data")
-	if err := d.Set("data", data.Raw); err != nil {
-		return diag.FromErr(err)
+	var raw string
+	if gqlResp != nil {
+		if gqlResp.Data != nil {
+			if b, err := json.Marshal(gqlResp.Data); err == nil {
+				raw = string(b)
+			} else {
+				resp.Diagnostics.AddError(
+					"Failed to marshal GraphQL data",
+					err.Error(),
+				)
+				return
+			}
+		} else {
+			raw = "null"
+		}
+	} else {
+		raw = "null"
 	}
 
-	// always run
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
+	data.Data = types.StringValue(raw)
 
-	return diags
+	_ = time.Now()
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

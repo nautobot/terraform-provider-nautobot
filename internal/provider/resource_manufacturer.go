@@ -2,245 +2,274 @@ package provider
 
 import (
 	"context"
-	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-
-	nb "github.com/nautobot/go-nautobot/v2"
+	nb "github.com/nautobot/go-nautobot/v3"
 )
 
-func resourceManufacturer() *schema.Resource {
-	return &schema.Resource{
-		Description: "This object manages a manufacturer in Nautobot",
+var (
+	_ resource.Resource                = &ManufacturerResource{}
+	_ resource.ResourceWithImportState = &ManufacturerResource{}
+)
 
-		CreateContext: resourceManufacturerCreate,
-		ReadContext:   resourceManufacturerRead,
-		UpdateContext: resourceManufacturerUpdate,
-		DeleteContext: resourceManufacturerDelete,
+type ManufacturerResource struct {
+	client *APIClient
+}
 
-		Schema: map[string]*schema.Schema{
-			"created": {
-				Description: "Manufacturer's creation date.",
-				Type:        schema.TypeString,
+type manufacturerModel struct {
+	ID          types.String `tfsdk:"id"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	Created     types.String `tfsdk:"created"`
+	Display     types.String `tfsdk:"display"`
+	URL         types.String `tfsdk:"url"`
+	NaturalSlug types.String `tfsdk:"natural_slug"`
+	NotesURL    types.String `tfsdk:"notes_url"`
+}
+
+func NewManufacturerResource() resource.Resource {
+	return &ManufacturerResource{}
+}
+
+func (r *ManufacturerResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_manufacturer"
+}
+
+func (r *ManufacturerResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = rschema.Schema{
+		Description: "This object manages a manufacturer in Nautobot.",
+		Attributes: map[string]rschema.Attribute{
+			"id": rschema.StringAttribute{
 				Computed:    true,
-			},
-			"description": {
-				Description: "Manufacturer's description.",
-				Type:        schema.TypeString,
-				Optional:    true,
-			},
-			"display": {
-				Description: "Manufacturer's display name.",
-				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"id": {
 				Description: "Manufacturer's UUID.",
-				Type:        schema.TypeString,
-				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"last_updated": {
-				Description: "Manufacturer's last update date.",
-				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"name": {
-				Description: "Manufacturer's name.",
-				Type:        schema.TypeString,
+
+			"name": rschema.StringAttribute{
 				Required:    true,
+				Description: "Manufacturer's name.",
 			},
-			"notes_url": {
-				Description: "Notes URL for the manufacturer.",
-				Type:        schema.TypeString,
+
+			"description": rschema.StringAttribute{
+				Optional:    true,
 				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Manufacturer's description.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"url": {
+
+			"created": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Manufacturer's creation date (RFC3339).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+
+			"display": rschema.StringAttribute{
+				Computed:    true,
+				Description: "Manufacturer's display name.",
+			},
+			"url": rschema.StringAttribute{
+				Computed:    true,
 				Description: "Manufacturer's URL.",
-				Type:        schema.TypeString,
-				Computed:    true,
 			},
-			"object_type": {
-				Description: "Object type of the manufacturer.",
-				Type:        schema.TypeString,
+			"natural_slug": rschema.StringAttribute{
 				Computed:    true,
-			},
-			"natural_slug": {
 				Description: "Natural slug for the manufacturer.",
-				Type:        schema.TypeString,
+			},
+			"notes_url": rschema.StringAttribute{
 				Computed:    true,
+				Description: "Notes URL for the manufacturer.",
 			},
 		},
 	}
 }
 
-func resourceManufacturerCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	s := meta.(*apiClient).Server
-	t := meta.(*apiClient).Token.token
+func (r *ManufacturerResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	r.client = req.ProviderData.(*APIClient)
+}
 
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Check if a manufacturer with the same name already exists
-	name := d.Get("name").(string)
-
-	existingManufacturersResp, _, err := c.DcimAPI.DcimManufacturersList(auth).Execute()
-	if err != nil {
-		return diag.Errorf("failed to check existing manufacturers on %s : %s", s, err.Error())
+func (r *ManufacturerResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan manufacturerModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	// Search through the results for a manufacturer with the given name
-	for _, manufacturer := range existingManufacturersResp.Results {
-		if manufacturer.Name == name {
-			// Manufacturer already exists, set the ID and exit
-			d.SetId(manufacturer.Id)
-			return resourceManufacturerRead(ctx, d, meta)
+	c := r.client.Client
+
+	var body nb.ManufacturerRequest
+	body.Name = plan.Name.ValueString()
+	if v := plan.Description.ValueString(); v != "" {
+		body.Description = &v
+	}
+
+	out, httpResp, err := c.DcimAPI.
+		DcimManufacturersCreate(ctx).
+		ManufacturerRequest(body).
+		Execute()
+	if err != nil {
+		resp.Diagnostics.AddError("failed to create manufacturer", httpErr(err, httpResp))
+		return
+	}
+	if out.Id == nil || *out.Id == "" {
+		resp.Diagnostics.AddError("invalid API response", "created manufacturer returned no id")
+		return
+	}
+
+	model, found, diags := r.readModel(ctx, *out.Id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read manufacturer", "created manufacturer was not found")
+		return
+	}
+
+	tflog.Debug(ctx, "manufacturer created", map[string]any{"id": *out.Id, "name": plan.Name.ValueString()})
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *ManufacturerResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state manufacturerModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	id := state.ID.ValueString()
+	if id == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	model, found, diags := r.readModel(ctx, id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+}
+
+func (r *ManufacturerResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan, state manufacturerModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	id := state.ID.ValueString()
+	c := r.client.Client
+
+	var patch nb.PatchedManufacturerRequest
+
+	if !plan.Name.Equal(state.Name) {
+		v := plan.Name.ValueString()
+		patch.Name = &v
+	}
+	if !plan.Description.Equal(state.Description) {
+		if plan.Description.ValueString() == "" {
+			empty := ""
+			patch.Description = &empty
+		} else {
+			v := plan.Description.ValueString()
+			patch.Description = &v
 		}
 	}
 
-	// Create a new manufacturer
-	var m nb.ManufacturerRequest
-	m.Name = name
-
-	if v, ok := d.GetOk("description"); ok {
-		desc := v.(string)
-		m.Description = &desc
-	}
-	rsp, _, err := c.DcimAPI.DcimManufacturersCreate(auth).ManufacturerRequest(m).Execute()
+	_, httpResp, err := c.DcimAPI.
+		DcimManufacturersPartialUpdate(ctx, id).
+		PatchedManufacturerRequest(patch).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to create manufacturer %s on %s: %s", m.Name, s, err.Error())
+		resp.Diagnostics.AddError("failed to update manufacturer", httpErr(err, httpResp))
+		return
 	}
 
-	tflog.Trace(ctx, "manufacturer created", map[string]interface{}{
-		"name": m.Name,
-	})
+	model, found, diags := r.readModel(ctx, id)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError("failed to read manufacturer", "updated manufacturer was not found")
+		return
+	}
 
-	d.SetId(rsp.Id)
-
-	return resourceManufacturerRead(ctx, d, meta)
+	tflog.Debug(ctx, "manufacturer updated", map[string]any{"id": id})
+	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
-func resourceManufacturerRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
-	id := d.Get("id").(string)
-
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	// Fetch manufacturer by ID
-	manufacturer, _, err := c.DcimAPI.DcimManufacturersRetrieve(auth, id).Execute()
-	if err != nil {
-		return diag.Errorf("failed to get manufacturer %s: %s", id, err.Error())
+func (r *ManufacturerResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state manufacturerModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	// Set the Terraform state from the retrieved manufacturer data
-	d.Set("name", manufacturer.Name)
-	if manufacturer.Created.IsSet() && manufacturer.Created.Get() != nil {
-		d.Set("created", manufacturer.Created.Get().Format(time.RFC3339))
+	httpResp, err := r.client.Client.DcimAPI.
+		DcimManufacturersDestroy(ctx, state.ID.ValueString()).
+		Execute()
+	if err != nil && !isNotFoundResponse(httpResp) {
+		resp.Diagnostics.AddError("failed to delete manufacturer", httpErr(err, httpResp))
+		return
 	}
-	if manufacturer.LastUpdated.IsSet() && manufacturer.LastUpdated.Get() != nil {
-		d.Set("last_updated", manufacturer.LastUpdated.Get().Format(time.RFC3339))
-	}
-	d.Set("description", manufacturer.Description)
-	d.Set("display", manufacturer.Display)
-	d.Set("id", manufacturer.Id)
-	d.Set("notes_url", manufacturer.NotesUrl)
-	d.Set("url", manufacturer.Url)
-	d.Set("object_type", manufacturer.ObjectType)
-	d.Set("natural_slug", manufacturer.NaturalSlug)
-
-	return nil
 }
 
-func resourceManufacturerUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	c := meta.(*apiClient).Client
-	s := meta.(*apiClient).Server
-	t := meta.(*apiClient).Token.token
-
-	id := d.Get("id").(string)
-
-	var m nb.PatchedManufacturerRequest
-
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	if d.HasChange("name") {
-		name := d.Get("name").(string)
-		m.Name = &name
-	}
-
-	if d.HasChange("description") {
-		desc := d.Get("description").(string)
-		m.Description = &desc
-	}
-
-	_, _, err := c.DcimAPI.DcimManufacturersPartialUpdate(auth, id).PatchedManufacturerRequest(m).Execute()
-	if err != nil {
-		return diag.Errorf("failed to update manufacturer %s on %s: %s", id, s, err.Error())
-	}
-
-	tflog.Trace(ctx, "manufacturer updated", map[string]interface{}{
-		"id": id,
-	})
-
-	return resourceManufacturerRead(ctx, d, meta)
+func (r *ManufacturerResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func resourceManufacturerDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+func (r *ManufacturerResource) readModel(ctx context.Context, id string) (manufacturerModel, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	c := meta.(*apiClient).Client
-	s := meta.(*apiClient).Server
-	t := meta.(*apiClient).Token.token
-
-	id := d.Get("id").(string)
-
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
-
-	_, err := c.DcimAPI.DcimManufacturersDestroy(auth, id).Execute()
+	m, httpResp, err := r.client.Client.DcimAPI.
+		DcimManufacturersRetrieve(ctx, id).
+		Execute()
+	if isNotFoundResponse(httpResp) {
+		return manufacturerModel{}, false, diags
+	}
 	if err != nil {
-		return diag.Errorf("failed to delete manufacturer %s on %s: %s", id, s, err.Error())
+		diags.AddError("failed to read manufacturer", httpErr(err, httpResp))
+		return manufacturerModel{}, false, diags
 	}
 
-	// d.SetId("") is automatically called assuming delete returns no errors, but
-	// it is added here for explicitness.
-	d.SetId("")
+	var out manufacturerModel
+	out.ID = types.StringValue(id)
+	out.Name = types.StringValue(m.Name)
 
-	return diags
+	out.Description = types.StringValue(derefStr(m.Description))
+
+	out.Created = nullableTimeStr(m.Created)
+
+	out.Display = types.StringValue(m.Display)
+	out.URL = types.StringValue(m.Url)
+	out.NaturalSlug = types.StringValue(m.NaturalSlug)
+	out.NotesURL = types.StringValue(m.NotesUrl)
+
+	tflog.Debug(ctx, "read manufacturer", map[string]any{"id": id})
+	return out, true, diags
 }

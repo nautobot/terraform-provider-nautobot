@@ -1,0 +1,61 @@
+name: Documentation issue
+description: Report missing, incorrect, or unclear provider documentation
+title: "[Docs]: "
+body:
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched open and closed issues for an existing report.
+          required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Documentation location
+      description: Link to the page or provide the repository path and section.
+      placeholder: "docs/resources/prefix.md — Schema"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Problem type
+      options:
+        - Incorrect information
+        - Missing information
+        - Unclear explanation
+        - Missing or incorrect example
+        - Broken link or formatting
+        - Generated schema documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Explain what is wrong or difficult to understand.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_change
+    attributes:
+      label: Suggested improvement
+      description: Describe the wording, example, or information that would resolve the issue.
+
+  - type: input
+    id: versions
+    attributes:
+      label: Relevant versions
+      description: Include the provider, Terraform/OpenTofu, and Nautobot versions when the documentation differs by version.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add related issues, API documentation, examples, or screenshots without sensitive information.
+

@@ -2,130 +2,154 @@ package provider
 
 import (
 	"context"
-	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	nb "github.com/nautobot/go-nautobot/v2"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func dataSourceManufacturer() *schema.Resource {
-	return &schema.Resource{
+var (
+	_ datasource.DataSource              = &ManufacturerDataSource{}
+	_ datasource.DataSourceWithConfigure = &ManufacturerDataSource{}
+)
+
+type ManufacturerDataSource struct {
+	client *APIClient
+}
+
+type manufacturerDataSourceModel struct {
+	Name        types.String `tfsdk:"name"`
+	ID          types.String `tfsdk:"id"`
+	Display     types.String `tfsdk:"display"`
+	URL         types.String `tfsdk:"url"`
+	NaturalSlug types.String `tfsdk:"natural_slug"`
+	Description types.String `tfsdk:"description"`
+	Created     types.String `tfsdk:"created"`
+	LastUpdated types.String `tfsdk:"last_updated"`
+	NotesURL    types.String `tfsdk:"notes_url"`
+}
+
+func NewManufacturerDataSource() datasource.DataSource {
+	return &ManufacturerDataSource{}
+}
+
+func (d *ManufacturerDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_manufacturer"
+}
+
+func (d *ManufacturerDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = dsschema.Schema{
 		Description: "Retrieves information about a specific manufacturer in Nautobot.",
-
-		ReadContext: dataSourceManufacturerRead,
-
-		Schema: map[string]*schema.Schema{
-			"name": {
+		Attributes: map[string]dsschema.Attribute{
+			"name": dsschema.StringAttribute{
 				Description: "The name of the manufacturer to retrieve.",
-				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"id": {
+			"id": dsschema.StringAttribute{
 				Description: "Manufacturer's UUID.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"object_type": {
-				Description: "Object type of the manufacturer.",
-				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"display": {
+			"display": dsschema.StringAttribute{
 				Description: "Human friendly display value for the manufacturer.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"url": {
+			"url": dsschema.StringAttribute{
 				Description: "URL of the manufacturer.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"natural_slug": {
+			"natural_slug": dsschema.StringAttribute{
 				Description: "Natural slug for the manufacturer.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"description": {
+			"description": dsschema.StringAttribute{
 				Description: "Manufacturer's description.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"created": {
-				Description: "Manufacturer's creation date.",
-				Type:        schema.TypeString,
+			"created": dsschema.StringAttribute{
+				Description: "Manufacturer's creation date (RFC3339).",
 				Computed:    true,
 			},
-			"last_updated": {
-				Description: "Manufacturer's last update.",
-				Type:        schema.TypeString,
+			"last_updated": dsschema.StringAttribute{
+				Description: "Manufacturer's last update date (RFC3339).",
 				Computed:    true,
 			},
-			"notes_url": {
+			"notes_url": dsschema.StringAttribute{
 				Description: "Notes URL for the manufacturer.",
-				Type:        schema.TypeString,
 				Computed:    true,
 			},
 		},
 	}
 }
 
-func dataSourceManufacturerRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
+func (d *ManufacturerDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	d.client = req.ProviderData.(*APIClient)
+}
 
-	c := meta.(*apiClient).Client
-	t := meta.(*apiClient).Token.token
+func (d *ManufacturerDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data manufacturerDataSourceModel
 
-	// Get the manufacturer name from the Terraform configuration
-	manufacturerName := d.Get("name").(string)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	// Auth context
-	auth := context.WithValue(
-		ctx,
-		nb.ContextAPIKeys,
-		map[string]nb.APIKey{
-			"tokenAuth": {
-				Key:    t,
-				Prefix: "Token",
-			},
-		},
-	)
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Provider not configured",
+			"API client is not configured. This is a bug in the provider configuration.",
+		)
+		return
+	}
 
-	// Fetch manufacturer by name
-	rsp, _, err := c.DcimAPI.DcimManufacturersList(auth).Name([]string{manufacturerName}).Execute()
+	c := d.client.Client
+	name := data.Name.ValueString()
+
+	rsp, httpResp, err := c.DcimAPI.
+		DcimManufacturersList(ctx).
+		Name([]string{name}).
+		Execute()
 	if err != nil {
-		return diag.Errorf("failed to get manufacturer with name %s: %s", manufacturerName, err.Error())
+		resp.Diagnostics.AddError(
+			"Failed to get manufacturer",
+			httpErr(err, httpResp),
+		)
+		return
 	}
 
 	if len(rsp.Results) == 0 {
-		return diag.Errorf("no manufacturer found with name %s", manufacturerName)
+		resp.Diagnostics.AddError(
+			"Manufacturer not found",
+			"No manufacturer found with name "+name,
+		)
+		return
 	}
 
-	manufacturer := rsp.Results[0]
+	m := rsp.Results[0]
 
-	d.SetId(manufacturer.Id)
-
-	createdStr := ""
-	if manufacturer.Created.IsSet() && manufacturer.Created.Get() != nil {
-		createdStr = manufacturer.Created.Get().Format(time.RFC3339)
+	if m.Id == nil || *m.Id == "" {
+		resp.Diagnostics.AddError(
+			"Invalid manufacturer data",
+			"Manufacturer "+name+" returned no id",
+		)
+		return
 	}
+	id := *m.Id
+	data.ID = types.StringValue(id)
 
-	lastUpdatedStr := ""
-	if manufacturer.LastUpdated.IsSet() && manufacturer.LastUpdated.Get() != nil {
-		lastUpdatedStr = manufacturer.LastUpdated.Get().Format(time.RFC3339)
-	}
+	data.Name = types.StringValue(m.Name)
+	data.Display = types.StringValue(m.Display)
+	data.URL = types.StringValue(m.Url)
+	data.NaturalSlug = types.StringValue(m.NaturalSlug)
+	data.Description = types.StringValue(derefStr(m.Description))
+	data.Created = nullableTimeStr(m.Created)
+	data.LastUpdated = nullableTimeStr(m.LastUpdated)
+	data.NotesURL = types.StringValue(m.NotesUrl)
 
-	// Set the fields directly in the resource data
-	d.Set("id", manufacturer.Id)
-	d.Set("object_type", manufacturer.ObjectType)
-	d.Set("display", manufacturer.Display)
-	d.Set("url", manufacturer.Url)
-	d.Set("natural_slug", manufacturer.NaturalSlug)
-	d.Set("name", manufacturer.Name)
-	d.Set("description", manufacturer.Description)
-	d.Set("created", createdStr)
-	d.Set("last_updated", lastUpdatedStr)
-	d.Set("notes_url", manufacturer.NotesUrl)
+	tflog.Debug(ctx, "read manufacturer", map[string]any{"id": id, "name": name})
 
-	return diags
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

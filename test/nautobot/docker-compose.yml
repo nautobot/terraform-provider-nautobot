@@ -1,0 +1,54 @@
+---
+x-nautobot-base: &nautobot-base
+  image: "ghcr.io/nautobot/nautobot:${NAUTOBOT_VER}-py${PYTHON_VER}"
+  env_file:
+    - "test/nautobot/nautobot_dev.env"
+  tty: true
+  volumes:
+    - "./test/nautobot/nautobot_config.py:/opt/nautobot/nautobot_config.py"
+
+services:
+  nautobot:
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 30
+      test:
+        - "CMD"
+        - "curl"
+        - "-fsS"
+        - "http://nautobot:8080/health/"
+    command: "nautobot-server runserver 0.0.0.0:8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: "service_started"
+      db:
+        condition: "service_healthy"
+    <<: *nautobot-base
+
+  db:
+    image: "postgres:18-alpine"
+    env_file:
+      - "test/nautobot/nautobot_dev.env"
+    volumes:
+      - "postgres_data:/var/lib/postgresql"
+    healthcheck:
+      test: "pg_isready --username=$$POSTGRES_USER --dbname=$$POSTGRES_DB"
+      interval: "10s"
+      timeout: "5s"
+      retries: 10
+
+  redis:
+    image: "redis:8-alpine"
+    command:
+      - "sh"
+      - "-c"
+      - "redis-server --appendonly yes --requirepass $$NAUTOBOT_REDIS_PASSWORD"
+    env_file:
+      - "test/nautobot/nautobot_dev.env"
+
+volumes:
+  postgres_data: {}

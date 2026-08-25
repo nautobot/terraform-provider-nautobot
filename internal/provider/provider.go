@@ -2,125 +2,255 @@ package provider
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	nb "github.com/nautobot/go-nautobot/v2"
+	nb "github.com/nautobot/go-nautobot/v3"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	pSchema "github.com/hashicorp/terraform-plugin-framework/provider/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func init() {
-	// Set descriptions to support markdown syntax, this will be used in document generation
-	// and the language server.
-	schema.DescriptionKind = schema.StringMarkdown
+const defaultStatusRequestTimeoutSeconds int64 = 10
 
-	// Customize the content of descriptions when output. For example you can add defaults on
-	// to the exported descriptions if present.
-	// schema.SchemaDescriptionBuilder = func(s *schema.Schema) string {
-	// 	desc := s.Description
-	// 	if s.Default != nil {
-	// 		desc += fmt.Sprintf(" Defaults to `%v`.", s.Default)
-	// 	}
-	// 	return strings.TrimSpace(desc)
-	// }
+type nautobotProvider struct{ version string }
+
+type providerModel struct {
+	URL                   types.String `tfsdk:"url"`
+	Token                 types.String `tfsdk:"token"`
+	SkipVersionCheck      types.Bool   `tfsdk:"skip_version_check"`
+	InsecureSkipTLSVerify types.Bool   `tfsdk:"insecure_skip_tls_verify"`
+	StatusRequestTimeout  types.Int64  `tfsdk:"status_request_timeout"`
 }
 
-func New(version string) func() *schema.Provider {
-	return func() *schema.Provider {
-		p := &schema.Provider{
-			Schema: map[string]*schema.Schema{
-				"url": {
-					Type:     schema.TypeString,
-					Required: true,
-					DefaultFunc: schema.EnvDefaultFunc(
-						"NAUTOBOT_URL",
-						nil,
-					),
-					ValidateFunc: validation.IsURLWithHTTPorHTTPS,
-					Description:  "Nautobot API URL",
-				},
-				"token": {
-					Type:      schema.TypeString,
-					Required:  true,
-					Sensitive: true,
-					DefaultFunc: schema.EnvDefaultFunc(
-						"NAUTOBOT_TOKEN",
-						nil,
-					),
-					Description: "Admin API token",
-				},
-			},
-			DataSourcesMap: map[string]*schema.Resource{
-				"nautobot_available_ip_address": dataSourceAvailableIP(),
-				"nautobot_cluster":              dataSourceCluster(),
-				"nautobot_clusters":             dataSourceClusters(),
-				"nautobot_cluster_type":         dataSourceClusterType(),
-				"nautobot_cluster_types":        dataSourceClusterTypes(),
-				"nautobot_manufacturer":         dataSourceManufacturer(),
-				"nautobot_manufacturers":        dataSourceManufacturers(),
-				"nautobot_graphql":              dataSourceGraphQL(),
-				"nautobot_prefix":               dataSourcePrefix(),
-				"nautobot_prefixes":             dataSourcePrefixes(),
-				"nautobot_virtual_machine":      dataSourceVirtualMachine(),
-				"nautobot_virtual_machines":     dataSourceVirtualMachines(),
-				"nautobot_vlan":                 dataSourceVLAN(),
-				"nautobot_vlans":                dataSourceVLANs(),
-			},
-			ResourcesMap: map[string]*schema.Resource{
-				"nautobot_available_ip_address": resourceAvailableIPAddress(),
-				"nautobot_cluster":              resourceCluster(),
-				"nautobot_cluster_type":         resourceClusterType(),
-				"nautobot_manufacturer":         resourceManufacturer(),
-				"nautobot_virtual_machine":      resourceVirtualMachine(),
-				"nautobot_vm_interface":         resourceVMInterface(),
-				"nautobot_vm_primary_ip":        resourcePrimaryIPAddressForVM(),
-			},
-		}
-
-		p.ConfigureContextFunc = configure(version, p)
-
-		return p
-	}
-}
-
-// Add whatever fields, client or connection info, etc. here
-// you would need to setup to communicate with the upstream
-// API.
-type apiClient struct {
+type APIClient struct {
 	Client *nb.APIClient
-	Server string
-	Token  *SecurityProviderNautobotToken
+	Token  string
 }
 
-func configure(
-	version string,
-	p *schema.Provider,
-) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
-	return func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
-		serverURL := d.Get("url").(string)
-		config := nb.NewConfiguration()
-		config.Servers[0].URL = serverURL
-		_, hasToken := d.GetOk("token")
+func New(version string) provider.Provider {
+	return &nautobotProvider{version: version}
+}
 
-		var diags diag.Diagnostics = nil
+func (p *nautobotProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "nautobot"
+	resp.Version = p.version
+}
 
-		if !hasToken {
-			diags = diag.FromErr(fmt.Errorf("missing token"))
-			diags[0].Severity = diag.Error
-			return &apiClient{Server: serverURL}, diags
-		}
-
-		token, _ := NewSecurityProviderNautobotToken(
-			d.Get("token").(string),
-		)
-
-		c := nb.NewAPIClient(config)
-
-		return &apiClient{
-			Client: c,
-			Server: serverURL,
-			Token:  token,
-		}, diags
+func (p *nautobotProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+	resp.Schema = pSchema.Schema{
+		Attributes: map[string]pSchema.Attribute{
+			"url": pSchema.StringAttribute{
+				Required:    true,
+				Description: "Nautobot API URL",
+			},
+			"token": pSchema.StringAttribute{
+				Required:    true,
+				Sensitive:   true,
+				Description: "Admin API token",
+			},
+			"skip_version_check": pSchema.BoolAttribute{
+				Optional:    true,
+				Description: "Skip Nautobot version compatibility check. Use with caution.",
+			},
+			"insecure_skip_tls_verify": pSchema.BoolAttribute{
+				Optional: true,
+				Description: "Disable TLS certificate verification when connecting to Nautobot. " +
+					"Use only for testing.",
+			},
+			"status_request_timeout": pSchema.Int64Attribute{
+				Optional:    true,
+				Description: "Timeout in seconds for the Nautobot status request used to verify version compatibility. Defaults to 10 seconds. Set to 0 to disable the timeout.",
+				Validators: []validator.Int64{
+					int64validator.AtLeast(0),
+				},
+			},
+		},
 	}
+}
+
+func (p *nautobotProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	var cfg providerModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if cfg.URL.IsNull() || cfg.URL.IsUnknown() || cfg.Token.IsNull() || cfg.Token.IsUnknown() {
+		resp.Diagnostics.AddError("Missing configuration", "Both url and token must be set")
+		return
+	}
+
+	skipVersionCheck := false
+	if !cfg.SkipVersionCheck.IsNull() && !cfg.SkipVersionCheck.IsUnknown() {
+		skipVersionCheck = cfg.SkipVersionCheck.ValueBool()
+	}
+
+	insecureSkipTLS := false
+	if !cfg.InsecureSkipTLSVerify.IsNull() && !cfg.InsecureSkipTLSVerify.IsUnknown() {
+		insecureSkipTLS = cfg.InsecureSkipTLSVerify.ValueBool()
+	}
+
+	statusRequestTimeoutSeconds := defaultStatusRequestTimeoutSeconds
+	if !cfg.StatusRequestTimeout.IsNull() && !cfg.StatusRequestTimeout.IsUnknown() {
+		statusRequestTimeoutSeconds = cfg.StatusRequestTimeout.ValueInt64()
+	}
+
+	conf := nb.NewConfiguration()
+	conf.Servers[0].URL = cfg.URL.ValueString()
+
+	baseTransport := http.DefaultTransport
+	if insecureSkipTLS {
+		if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+			tCopy := dt.Clone()
+			tCopy.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+			baseTransport = tCopy
+		} else {
+			baseTransport = &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+		}
+	}
+
+	httpClient := &http.Client{
+		Transport: &authRT{
+			base:  baseTransport,
+			token: cfg.Token.ValueString(),
+		},
+	}
+
+	conf.HTTPClient = httpClient
+	api := nb.NewAPIClient(conf)
+
+	if !skipVersionCheck {
+		if err := p.checkVersionCompatibility(ctx, api, time.Duration(statusRequestTimeoutSeconds)*time.Second); err != nil {
+			resp.Diagnostics.AddError(
+				"Failed to verify Nautobot version",
+				err.Error(),
+			)
+			return
+		}
+	}
+
+	client := &APIClient{Client: api, Token: cfg.Token.ValueString()}
+	resp.ResourceData = client
+	resp.DataSourceData = client
+}
+
+type authRT struct {
+	base  http.RoundTripper
+	token string
+}
+
+func (a *authRT) RoundTrip(r *http.Request) (*http.Response, error) {
+	r.Header.Set("Authorization", "Token "+a.token)
+	return a.base.RoundTrip(r)
+}
+
+func (p *nautobotProvider) Resources(_ context.Context) []func() resource.Resource {
+	return []func() resource.Resource{
+		NewAvailableIPAddressResource,
+		NewClusterResource,
+		NewClusterTypeResource,
+		NewManufacturerResource,
+		NewNamespaceResource,
+		NewPrefixResource,
+		NewVirtualMachineResource,
+		NewVMInterfaceResource,
+		NewVMPrimaryIPResource,
+		NewTenantResource,
+		NewTenantGroupResource,
+		NewVLANResource,
+	}
+}
+
+func (p *nautobotProvider) DataSources(_ context.Context) []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+		NewAvailableIPAddressDataSource,
+		NewClusterDataSource,
+		NewClustersDataSource,
+		NewClusterTypeDataSource,
+		NewClusterTypesDataSource,
+		NewGraphQLDataSource,
+		NewManufacturerDataSource,
+		NewManufacturersDataSource,
+		NewNamespaceDataSource,
+		NewNamespacesDataSource,
+		NewPrefixDataSource,
+		NewPrefixesDataSource,
+		NewVirtualMachineDataSource,
+		NewVirtualMachinesDataSource,
+		NewTenantDataSource,
+		NewTenantsDataSource,
+		NewTenantGroupDataSource,
+		NewTenantGroupsDataSource,
+		NewVLANDataSource,
+		NewVLANsDataSource,
+	}
+}
+
+func (p *nautobotProvider) checkVersionCompatibility(ctx context.Context, api *nb.APIClient, timeout time.Duration) error {
+	statusCtx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		statusCtx, cancel = context.WithTimeout(ctx, timeout)
+	}
+	defer cancel()
+
+	status, httpResp, err := api.StatusAPI.StatusRetrieve(statusCtx).Execute()
+	if err != nil {
+		if timeout > 0 && statusCtx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("Nautobot /api/status/ request timed out after %s", timeout)
+		}
+		if httpResp != nil {
+			return fmt.Errorf("failed to retrieve Nautobot status: %s (HTTP %s)", err, httpResp.Status)
+		}
+		return fmt.Errorf("failed to retrieve Nautobot status: %w", err)
+	}
+
+	if status == nil || status.NautobotVersion == nil {
+		return fmt.Errorf("status endpoint of Nautobot did not return a version")
+	}
+	nautobotVersion := strings.TrimSpace(*status.NautobotVersion)
+	if nautobotVersion == "" {
+		return fmt.Errorf("status endpoint of Nautobot did not return a version")
+	}
+
+	providerMajMin, err := majorMinorFromVersion(p.version)
+	if err != nil {
+		return nil
+	}
+	nautobotMajMin, err := majorMinorFromVersion(nautobotVersion)
+	if err != nil {
+		return fmt.Errorf("invalid Nautobot version %q: %w", nautobotVersion, err)
+	}
+
+	if providerMajMin != nautobotMajMin {
+		return fmt.Errorf(
+			"provider version %s is only compatible with Nautobot %s.x, but connected instance is %s",
+			p.version, providerMajMin, nautobotVersion,
+		)
+	}
+
+	return nil
+}
+
+func majorMinorFromVersion(v string) (string, error) {
+	v = strings.TrimSpace(v)
+	if strings.HasPrefix(v, "v") || strings.HasPrefix(v, "V") {
+		v = v[1:]
+	}
+	parts := strings.Split(v, ".")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("version %q does not have major.minor", v)
+	}
+	return parts[0] + "." + parts[1], nil
 }
